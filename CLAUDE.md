@@ -23,18 +23,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 cp .env.example .env
 # 编辑 .env 添加 API 密钥
 
-# 2. 安装依赖
-pip install openai
+# 2. 安装依赖（使用 uv）
+pip install openai python-dotenv
 
-# 3. 生成文章
-python evaluate_prompts.py --generate "和老伴吵了一辈子，老了才发现"
+# 3. 生成文章（使用 uv）
+uv run evaluate_prompts.py --generate "和老伴吵了一辈子，老了才发现"
 
 # 4. 批量生成（日更）
-python evaluate_prompts.py --batch topic1 topic2 topic3
+uv run evaluate_prompts.py --batch topic1 topic2 topic3
 
 # 5. 查看帮助
-python evaluate_prompts.py --help
+uv run evaluate_prompts.py --help
 ```
+
+**注意**：本项目使用 `uv run` 来执行脚本，确保使用项目虚拟环境中的依赖。
 
 ## 架构说明
 
@@ -155,4 +157,36 @@ xiaoai_api_key=<密钥>
 | 日记体 | `日记体` | 日记记录 |
 
 详细说明见 `prompts/structures_library.md`
+
+## 文档维护原则
+
+**CLAUDE.md 是动态文档，必须与代码保持同步。**
+
+### 更新触发条件
+
+当代码发生以下变更时，AI 必须主动更新 CLAUDE.md：
+
+1. **新增函数/模块**：在"关键模块"表格中添加对应的函数名和行号
+2. **函数位置变更**：更新对应的行号参考
+3. **架构变更**：更新"架构说明"和"目录结构"
+4. **配置变更**：更新"配置说明"部分
+5. **新增功能**：在适当位置添加使用说明
+
+### 维护检查清单
+
+在提交代码前，AI 应该检查：
+- [ ] 新增函数是否已在"关键模块"表格中列出
+- [ ] 行号参考是否准确（误差在 ±10 行内）
+- [ ] 目录结构是否反映最新状态
+- [ ] 配置说明是否与实际代码一致
+
+### 文档结构
+
+CLAUDE.md 应该保持简洁（目标 < 200 行），聚焦于：
+- ✅ 项目概述和快速开始
+- ✅ 架构说明和关键函数
+- ✅ 配置说明
+- ✅ 开发注意事项
+
+详细教程内容放在 USAGE.md 中。
 
