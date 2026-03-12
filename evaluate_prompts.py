@@ -300,19 +300,23 @@ def generate_title_from_topic(topic: str, title_type: str = None) -> str:
     if title_type == "对话引用型":
         # 尝试提取对话
         if "女儿" in topic:
-            return f"《女儿说"挺好的"，我知道她在硬撑》"
+            return '《女儿说"挺好的"，我知道她在硬撑》'
         elif "老伴" in topic:
-            return f"《老伴说"你退休了别管我"》"
+            return '《老伴说"你退休了别管我"》'
         elif "母亲" in topic or "妈妈" in topic:
-            return f"《老母亲说"你别回来了"》"
+            return '《老母亲说"你别回来了"》'
     elif title_type == "场景细节型":
         # 提取场景关键词
         if "老伴" in topic:
-            return f"《老伴炖的那碗汤，我喝了一辈子》"
+            return '《老伴炖的那碗汤，我喝了一辈子》'
         elif "女儿" in topic:
-            return f"《视频挂了之后，我常常对着手机发呆》"
+            return '《视频挂了之后，我常常对着手机发呆》'
     elif title_type == "今昔对比型":
-        return f"《以前总觉得{topic.split('，')[0]}，现在{topic.split('，')[1] if '，' in topic else '才明白'}》"
+        parts = topic.split('，')
+        if len(parts) >= 2:
+            return f'《以前总觉得{parts[0]}，现在{parts[1]}》'
+        else:
+            return f'《以前总觉得{topic}，现在才明白》'
 
     # 默认使用感悟发现型
     return f"《老了才发现，{topic}》"
