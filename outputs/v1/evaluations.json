@@ -1,0 +1,167 @@
+[
+  {
+    "provider": "openai",
+    "model": "gpt-5.1-2025-11-13",
+    "evaluation": {
+      "intro_ok": true,
+      "has_classic": false,
+      "has_3_points": true,
+      "ending_concise": true,
+      "in_length_range": true,
+      "chars": 687,
+      "paragraphs": 9,
+      "score": 8
+    },
+    "output_path": "/Users/Oychao/Documents/Projects/content-test/outputs/openai__gpt-5.1-2025-11-13.txt"
+  },
+  {
+    "provider": "openai",
+    "model": "gpt-5.2-2025-12-11",
+    "evaluation": {
+      "intro_ok": true,
+      "has_classic": false,
+      "has_3_points": true,
+      "ending_concise": true,
+      "in_length_range": false,
+      "chars": 446,
+      "paragraphs": 5,
+      "score": 7
+    },
+    "output_path": "/Users/Oychao/Documents/Projects/content-test/outputs/openai__gpt-5.2-2025-12-11.txt"
+  },
+  {
+    "provider": "openai",
+    "model": "gpt-5.4",
+    "evaluation": {
+      "intro_ok": true,
+      "has_classic": false,
+      "has_3_points": true,
+      "ending_concise": true,
+      "in_length_range": true,
+      "chars": 608,
+      "paragraphs": 10,
+      "score": 8
+    },
+    "output_path": "/Users/Oychao/Documents/Projects/content-test/outputs/openai__gpt-5.4.txt"
+  },
+  {
+    "provider": "anthropic",
+    "model": "claude-haiku-4-5-20251001-thinking",
+    "evaluation": {
+      "intro_ok": false,
+      "has_classic": false,
+      "has_3_points": true,
+      "ending_concise": true,
+      "in_length_range": true,
+      "chars": 769,
+      "paragraphs": 20,
+      "score": 6
+    },
+    "output_path": "/Users/Oychao/Documents/Projects/content-test/outputs/anthropic__claude-haiku-4-5-20251001-thinking.txt"
+  },
+  {
+    "provider": "anthropic",
+    "model": "claude-opus-4-5-20251101",
+    "evaluation": {
+      "intro_ok": true,
+      "has_classic": false,
+      "has_3_points": true,
+      "ending_concise": true,
+      "in_length_range": true,
+      "chars": 558,
+      "paragraphs": 17,
+      "score": 8
+    },
+    "output_path": "/Users/Oychao/Documents/Projects/content-test/outputs/anthropic__claude-opus-4-5-20251101.txt"
+  },
+  {
+    "provider": "anthropic",
+    "model": "claude-opus-4-6",
+    "evaluation": {
+      "intro_ok": true,
+      "has_classic": true,
+      "has_3_points": true,
+      "ending_concise": true,
+      "in_length_range": true,
+      "chars": 760,
+      "paragraphs": 29,
+      "score": 10
+    },
+    "output_path": "/Users/Oychao/Documents/Projects/content-test/outputs/anthropic__claude-opus-4-6.txt"
+  },
+  {
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-20250514",
+    "evaluation": {
+      "intro_ok": true,
+      "has_classic": false,
+      "has_3_points": true,
+      "ending_concise": true,
+      "in_length_range": false,
+      "chars": 457,
+      "paragraphs": 10,
+      "score": 7
+    },
+    "output_path": "/Users/Oychao/Documents/Projects/content-test/outputs/anthropic__claude-sonnet-4-20250514.txt"
+  },
+  {
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-6",
+    "evaluation": {
+      "intro_ok": true,
+      "has_classic": false,
+      "has_3_points": true,
+      "ending_concise": true,
+      "in_length_range": true,
+      "chars": 646,
+      "paragraphs": 25,
+      "score": 8
+    },
+    "output_path": "/Users/Oychao/Documents/Projects/content-test/outputs/anthropic__claude-sonnet-4-6.txt"
+  },
+  {
+    "provider": "google",
+    "model": "gemini-3.1-pro-preview",
+    "evaluation": {
+      "intro_ok": false,
+      "has_classic": true,
+      "has_3_points": true,
+      "ending_concise": true,
+      "in_length_range": true,
+      "chars": 558,
+      "paragraphs": 13,
+      "score": 8
+    },
+    "output_path": "/Users/Oychao/Documents/Projects/content-test/outputs/google__gemini-3.1-pro-preview.txt"
+  },
+  {
+    "provider": "deepseek",
+    "model": "deepseek-v3.1",
+    "evaluation": {
+      "intro_ok": true,
+      "has_classic": true,
+      "has_3_points": true,
+      "ending_concise": true,
+      "in_length_range": true,
+      "chars": 544,
+      "paragraphs": 10,
+      "score": 10
+    },
+    "output_path": "/Users/Oychao/Documents/Projects/content-test/outputs/deepseek__deepseek-v3.1.txt"
+  },
+  {
+    "provider": "deepseek",
+    "model": "deepseek-v3.2-exp",
+    "evaluation": {
+      "intro_ok": true,
+      "has_classic": true,
+      "has_3_points": true,
+      "ending_concise": true,
+      "in_length_range": false,
+      "chars": 489,
+      "paragraphs": 11,
+      "score": 9
+    },
+    "output_path": "/Users/Oychao/Documents/Projects/content-test/outputs/deepseek__deepseek-v3.2-exp.txt"
+  }
+]

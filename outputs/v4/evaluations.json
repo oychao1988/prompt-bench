@@ -1,0 +1,107 @@
+[
+  {
+    "provider": "openai",
+    "model": "gpt-5.2-2025-12-11",
+    "evaluation": {
+      "intro_ok": true,
+      "has_classic": false,
+      "has_3_points": true,
+      "ending_concise": true,
+      "in_length_range": false,
+      "chars": 1354,
+      "paragraphs": 9,
+      "score": 7
+    },
+    "output_path": "/Users/Oychao/Documents/Projects/content-test/outputs/v4/openai__gpt-5.2-2025-12-11.txt"
+  },
+  {
+    "provider": "anthropic",
+    "model": "claude-opus-4-5-20251101",
+    "evaluation": {
+      "intro_ok": true,
+      "has_classic": false,
+      "has_3_points": true,
+      "ending_concise": true,
+      "in_length_range": false,
+      "chars": 1250,
+      "paragraphs": 22,
+      "score": 7
+    },
+    "output_path": "/Users/Oychao/Documents/Projects/content-test/outputs/v4/anthropic__claude-opus-4-5-20251101.txt"
+  },
+  {
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-20250514",
+    "evaluation": {
+      "intro_ok": true,
+      "has_classic": false,
+      "has_3_points": true,
+      "ending_concise": false,
+      "in_length_range": false,
+      "chars": 913,
+      "paragraphs": 9,
+      "score": 5
+    },
+    "output_path": "/Users/Oychao/Documents/Projects/content-test/outputs/v4/anthropic__claude-sonnet-4-20250514.txt"
+  },
+  {
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-6",
+    "evaluation": {
+      "intro_ok": true,
+      "has_classic": false,
+      "has_3_points": true,
+      "ending_concise": true,
+      "in_length_range": false,
+      "chars": 1293,
+      "paragraphs": 30,
+      "score": 7
+    },
+    "output_path": "/Users/Oychao/Documents/Projects/content-test/outputs/v4/anthropic__claude-sonnet-4-6.txt"
+  },
+  {
+    "provider": "google",
+    "model": "gemini-3.1-pro-preview",
+    "evaluation": {
+      "intro_ok": true,
+      "has_classic": true,
+      "has_3_points": true,
+      "ending_concise": true,
+      "in_length_range": false,
+      "chars": 1716,
+      "paragraphs": 15,
+      "score": 9
+    },
+    "output_path": "/Users/Oychao/Documents/Projects/content-test/outputs/v4/google__gemini-3.1-pro-preview.txt"
+  },
+  {
+    "provider": "deepseek",
+    "model": "deepseek-v3.1",
+    "evaluation": {
+      "intro_ok": true,
+      "has_classic": true,
+      "has_3_points": true,
+      "ending_concise": true,
+      "in_length_range": true,
+      "chars": 1173,
+      "paragraphs": 23,
+      "score": 10
+    },
+    "output_path": "/Users/Oychao/Documents/Projects/content-test/outputs/v4/deepseek__deepseek-v3.1.txt"
+  },
+  {
+    "provider": "deepseek",
+    "model": "deepseek-v3.2-exp",
+    "evaluation": {
+      "intro_ok": true,
+      "has_classic": true,
+      "has_3_points": true,
+      "ending_concise": true,
+      "in_length_range": false,
+      "chars": 1394,
+      "paragraphs": 12,
+      "score": 9
+    },
+    "output_path": "/Users/Oychao/Documents/Projects/content-test/outputs/v4/deepseek__deepseek-v3.2-exp.txt"
+  }
+]
