@@ -25,3 +25,7 @@ build/
 # 系统
 .DS_Store
 Thumbs.db
+
+# 输出文件（生成的文章和评估结果）
+outputs/
+evaluations_history.json

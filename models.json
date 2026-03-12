@@ -1,70 +1,94 @@
 {
     "openai_models": [
         {
+            "provider": "xiaoai",
             "name": "gpt-5.1-2025-11-13",
+            "enabled": true,
             "input_price": "$1.2500/M",
             "output_price": "$10.0000/M"
         },
         {
+            "provider": "xiaoai",
             "name": "gpt-5.2-2025-12-11",
+            "enabled": true,
             "input_price": "$1.7500/M",
             "output_price": "$14.0000/M"
         },
         {
+            "provider": "xiaoai",
             "name": "gpt-5.4",
+            "enabled": false,
             "input_price": "$2.5000/M",
             "output_price": "$20.0000/M"
         }
     ],
     "anthropic_models": [
         {
+            "provider": "xiaoai",
             "name": "claude-haiku-4-5-20251001-thinking",
+            "enabled": false,
             "input_price": "$1.0000/M",
             "output_price": "$5.0000/M"
         },
         {
+            "provider": "xiaoai",
             "name": "claude-opus-4-5-20251101",
+            "enabled": true,
             "input_price": "$20.0000/M",
             "output_price": "$100.0000/M",
             "description": "Claude Opus 4.5 是由 anthropic 提供的人工智能模型。"
         },
         {
+            "provider": "xiaoai",
             "name": "claude-opus-4-6",
+            "enabled": true,
             "input_price": "$20.0000/M",
             "output_price": "$100.0000/M"
         },
         {
+            "provider": "xiaoai",
             "name": "claude-sonnet-4-20250514",
+            "enabled": true,
             "input_price": "$12.0000/M",
             "output_price": "$60.0000/M",
             "description": "Claude Sonnet 4 是由 anthropic 提供的人工智能模型。"
         },
         {
+            "provider": "xiaoai",
             "name": "claude-sonnet-4-6",
+            "enabled": true,
             "input_price": "$12.0000/M",
             "output_price": "$60.0000/M"
         }
     ],
     "google_models": [
         {
+            "provider": "xiaoai",
             "name": "gemini-3.0-flash-preview",
+            "enabled": false,
             "input_price": "$2.0000/M",
             "output_price": "$12.0000/M"
         },
         {
+            "provider": "xiaoai",
             "name": "gemini-3.1-pro-preview",
+            "enabled": true,
             "input_price": "$2.0000/M",
             "output_price": "$12.0000/M"
         }
     ],
     "deepseek_models": [
         {
+            "provider": "xiaoai",
             "name": "deepseek-v3.1",
+            "enabled": true,
             "input_price": "$16.0000/M",
             "output_price": "$192.0000/M"
         },
         {
+            "provider": "xiaoai",
             "name": "deepseek-v3.2-exp",
+            "enabled": true,
             "input_price": "$8.0000/M",
             "output_price": "$48.0000/M"
         }
