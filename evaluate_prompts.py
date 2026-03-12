@@ -368,6 +368,11 @@ def call_llm(
         ],
         temperature=0.8,
     )
+
+    # 验证响应格式
+    if not hasattr(resp, 'choices'):
+        raise RuntimeError(f"API 返回格式异常，期望带有 choices 属性的对象，实际收到: {type(resp)}")
+
     return resp.choices[0].message.content or ""
 
 
