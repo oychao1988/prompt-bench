@@ -126,7 +126,7 @@ uv run evaluate_prompts.py --create-version 4 --to 7
 
 ```
 outputs/
-└── v4/                              # 版本 4 的评估结果
+└── v5/                              # 版本 5 的评估结果
     ├── deepseek__deepseek-v3.1.txt  # 各模型生成的文章
     ├── anthropic__claude-opus-4-5-20251101.txt
     ├── google__gemini-3.1-pro-preview.txt
@@ -138,36 +138,58 @@ outputs/
 ```json
 [
   {
-    "provider": "deepseek",
-    "model": "deepseek-v3.1",
+    "provider": "google",
+    "model": "gemini-3.1-pro-preview",
     "evaluation": {
-      "score": 10,
-      "intro_ok": true,
-      "has_classic": true,
+      "rule_score": 5,
+      "ai_score": 3.5,
+      "total_score": 8.5,
+      "in_length_range": false,
+      "para_count_reasonable": true,
+      "avg_para_length_ok": false,
       "has_3_points": true,
-      "ending_good": true,
-      "in_length_range": true,
-      "chars": 1156,
-      "paragraphs": 8
+      "has_headings": false,
+      "chars": 1420,
+      "paragraphs": 9,
+      "avg_para_length": 157.8,
+      "length_range": "1000-1200",
+      "ai_details": {
+        "intro_quality": {"score": 1.0, "reason": "..."},
+        "classic_naturalness": {"score": 0.5, "reason": "..."},
+        "content_depth": {"score": 0.75, "reason": "..."},
+        "writing_fluency": {"score": 0.5, "reason": "..."},
+        "emotional_resonance": {"score": 0.5, "reason": "..."},
+        "human_like": {"score": 0.25, "reason": "..."}
+      }
     },
-    "output_path": "outputs/v4/deepseek__deepseek-v3.1.txt"
+    "output_path": "outputs/v5/google__gemini-3.1-pro-preview.txt"
   }
 ]
 ```
 
 ### 评分维度说明
 
+#### 总分：10分（规则5分 + AI评估5分）
+
+#### 规则评估（5分） - 客观指标
+
 | 维度 | 权重 | 检测规则 |
 |------|------|----------|
-| `intro_ok` | 2分 | 首段含"老了"/"人过六十"/"退休"等关键词 |
-| `has_classic` | 2分 | 含《》或古人名/诗书名 |
-| `has_3_points` | 1分 | 中间段落数 ≥ 3 |
-| `ending_good` | 2分 | 结尾 ≤ 80字或有总结词 |
-| `in_length_range` | 2分 | 字数在提示词要求范围内 |
-| `has_headings` | 1分 | 有小标题结构 |
-| `para_count_reasonable` | 1分 | 段落数 5-20 |
-| `avg_para_length_ok` | 1分 | 平均段落长度 30-150字 |
-| **总分** | **12分** | - |
+| `in_length_range` | 1.5分 | 字数是否在提示词要求范围内 |
+| `para_count_reasonable` | 1分 | 段落数是否合理（5-20段） |
+| `avg_para_length_ok` | 0.5分 | 平均段落长度是否合理（30-150字） |
+| `has_3_points` | 1分 | 中间是否有≥3个观点段落 |
+| `has_headings` | 1分 | 是否有小标题结构 |
+
+#### AI评估（5分） - 语义指标
+
+| 维度 | 权重 | 评估标准 |
+|------|------|----------|
+| `intro_quality` | 1分 | 开头是否直接入题，有吸引力，符合人设 |
+| `classic_naturalness` | 1分 | 经典引用是否自然恰当，与观点紧密相关 |
+| `content_depth` | 1分 | 内容是否有深度，观点是否有启发性 |
+| `writing_fluency` | 1分 | 文笔是否流畅自然，语言是否有节奏感，有人味儿 |
+| `emotional_resonance` | 1分 | 是否能引发情感共鸣，打动人心 |
 
 ---
 

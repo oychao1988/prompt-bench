@@ -16,10 +16,6 @@ OUTPUT_DIR = BASE_DIR / "outputs"
 OUTPUT_DIR.mkdir(exist_ok=True)
 EVALUATIONS_HISTORY_FILE = BASE_DIR / "evaluations_history.json"
 
-# 新增：模块化提示词文件路径
-BASE_PROMPT_FILE = PROMPTS_DIR / "v5_base.md"
-STRUCTURES_LIBRARY_FILE = PROMPTS_DIR / "structures_library.md"
-TITLES_LIBRARY_FILE = PROMPTS_DIR / "titles_library.md"
 
 
 # ====== 0. 读取 .env，初始化客户端 ======
@@ -113,110 +109,6 @@ def get_prompt_file_by_version(version: int) -> Path:
     return prompt_path
 
 
-def load_base_prompt() -> str:
-    """加载基础提示词（人设+风格+方向）"""
-    if not BASE_PROMPT_FILE.exists():
-        raise RuntimeError(f"未找到基础提示词文件：{BASE_PROMPT_FILE}")
-    return BASE_PROMPT_FILE.read_text(encoding="utf-8")
-
-
-def load_structure(structure_type: str = "场景感悟式") -> str:
-    """
-    从结构库中加载指定结构。
-
-    Args:
-        structure_type: 结构类型，如 "场景感悟式" / "今昔对比式" / "对话展开式"
-
-    Returns:
-        结构要求文本
-    """
-    if not STRUCTURES_LIBRARY_FILE.exists():
-        # 如果结构库不存在，返回默认结构
-        return get_default_structure(structure_type)
-
-    structures_text = STRUCTURES_LIBRARY_FILE.read_text(encoding="utf-8")
-    structure = extract_structure_from_text(structures_text, structure_type)
-
-    if structure:
-        return structure
-    else:
-        return get_default_structure(structure_type)
-
-
-def extract_structure_from_text(text: str, structure_type: str) -> Optional[str]:
-    """从结构库文本中提取指定结构"""
-    import re
-
-    # 匹配从 "## 结构X：XXX" 到下一个 "##" 之前的内容
-    patterns = [
-        rf'(## 结构[一二三四五六七八九十]+[：:]\s*{re.escape(structure_type)}.*?)(?=## 结构|$)',
-        rf'(## 结构\d+[：:]\s*{re.escape(structure_type)}.*?)(?=## 结构|$)',
-    ]
-
-    for pattern in patterns:
-        match = re.search(pattern, text, re.DOTALL)
-        if match:
-            content = match.group(1).strip()
-            # 提取模板部分（从"结构模板"开始）
-            template_match = re.search(r'(结构模板|模板).*?\n(.*?)(?=$|\n##|\n\*\*)', content, re.DOTALL)
-            if template_match:
-                return template_match.group(1).strip() + "\n" + template_match.group(2).strip()
-            return content
-
-    return None
-
-
-def get_default_structure(structure_type: str) -> str:
-    """返回默认结构（当结构库不存在时）"""
-    defaults = {
-        "场景感悟式": """
-## 结构要求：场景感悟式
-
-**开头**：一个具体场景（3-5句）
-- 直接入题，不拖沓，可从一个具体画面切入
-- 明确点出"人过六十 / 老了才明白 / 老了才发现"等主题
-
-**中间**：3-4个观点段落
-- 每个段落从一个细节/故事出发，顺出一层道理
-- 段落间空一行，方便阅读
-- 每段控制在3-5句
-- 分别围绕：和自己相处、和家人相处、和世界相处
-
-**结尾**：1-2句升华收束
-- 简短有力，像写给同龄人的一小段慢慢的叮嘱
-- 不开启新故事或论证
-""",
-        "对话展开式": """
-## 结构要求：对话展开式
-
-**开头**：一句对话/一个提问（3-5句引入）
-
-**中间**：对话展开 + 我的反应 + 事后的感悟
-- 完整叙述对话场景
-- 描述我当时的反应（说了什么/没说什么）
-- 事后的反思和感悟
-
-**结尾**：一句劝慰
-- 像对同龄人的轻轻叮嘱
-- 不开启新话题
-""",
-        "今昔对比式": """
-## 结构要求：今昔对比式
-
-**开头**：一句话点出对比
-- "以前...现在..."
-- "年轻时...老了才..."
-
-**中间**：3个对比场景
-- 每个场景都是"当年的我 vs 现在的我"
-- 通过具体事件展现观念/心态的变化
-
-**结尾**：一句感悟
-- 总结变化的核心
-""",
-    }
-
-    return defaults.get(structure_type, defaults["场景感悟式"])
 
 
 def load_prompt(prompt_path: Path) -> str:
@@ -224,105 +116,7 @@ def load_prompt(prompt_path: Path) -> str:
     return prompt_path.read_text(encoding="utf-8")
 
 
-# ====== 2. 提示词构建函数 ======
-
-
-def build_prompt(
-    topic: str,
-    structure_type: str = "场景感悟式",
-    custom_title: str = None,
-    custom_structure: str = None,
-    use_base_prompt: bool = True,
-) -> str:
-    """
-    构建完整的写作提示词。
-
-    Args:
-        topic: 选题，如 "和老伴吵了一辈子，老了才发现"
-        structure_type: 结构类型，如 "场景感悟式" / "今昔对比式" / "对话展开式"
-        custom_title: 自定义标题（可选）
-        custom_structure: 自定义结构（可选），用于仿写爆文
-        use_base_prompt: 是否使用模块化提示词（True）还是旧版提示词（False）
-
-    Returns:
-        完整的写作提示词
-    """
-    if use_base_prompt:
-        # 新版：使用模块化系统
-        base = load_base_prompt()
-        structure = custom_structure or load_structure(structure_type)
-        title = custom_title or f"《{topic}》"
-
-        full_prompt = f"""{base}
-
-## 标题
-{title}
-
-{structure}
-
-## 选题
-{topic}
-
-## 字数要求
-1000-1200字（微感悟/对话体/日记体可放宽至500-800字）
-
-请根据以上要求，写一篇完整的文章。"""
-    else:
-        # 旧版：加载完整提示词（向后兼容）
-        prompt_path, _ = get_latest_prompt_file()
-        base = load_prompt(prompt_path)
-        title = custom_title or f"《{topic}》"
-
-        full_prompt = f"""{base}
-
-## 标题
-{title}
-
-## 选题
-{topic}
-
-请根据以上要求，写一篇完整的文章。"""
-
-    return full_prompt
-
-
-def generate_title_from_topic(topic: str, title_type: str = None) -> str:
-    """
-    根据选题生成标题。
-
-    Args:
-        topic: 选题
-        title_type: 标题类型（可选），如 "感悟发现型" / "对话引用型" / "场景细节型"
-
-    Returns:
-        生成的标题
-    """
-    if title_type == "对话引用型":
-        # 尝试提取对话
-        if "女儿" in topic:
-            return '《女儿说"挺好的"，我知道她在硬撑》'
-        elif "老伴" in topic:
-            return '《老伴说"你退休了别管我"》'
-        elif "母亲" in topic or "妈妈" in topic:
-            return '《老母亲说"你别回来了"》'
-    elif title_type == "场景细节型":
-        # 提取场景关键词
-        if "老伴" in topic:
-            return '《老伴炖的那碗汤，我喝了一辈子》'
-        elif "女儿" in topic:
-            return '《视频挂了之后，我常常对着手机发呆》'
-    elif title_type == "今昔对比型":
-        parts = topic.split('，')
-        if len(parts) >= 2:
-            return f'《以前总觉得{parts[0]}，现在{parts[1]}》'
-        else:
-            return f'《以前总觉得{topic}，现在才明白》'
-
-    # 默认使用感悟发现型
-    return f"《老了才发现，{topic}》"
-
-
-# ====== 3. 统一的模型调用函数（兼容你提供的所有 model name）======
+# ====== 2. 统一的模型调用函数（兼容你提供的所有 model name）======
 
 
 def call_llm(
@@ -450,22 +244,23 @@ def extract_length_requirement(prompt: str) -> Tuple[int, int]:
 
 def evaluate_article(text: str, length_range: Optional[Tuple[int, int]] = None) -> Dict[str, Any]:
     """
-    不调用别的模型，只做一些"规则+统计"型评分，
-    简单、无成本，但能看出结构是否对齐。
+    规则评估函数：基于"规则+统计"型评分，简单、无成本，评估结构是否对齐。
 
-    评分体系（总分 12 分）：
-    - intro_ok: 2分 - 开头是否直接入题
-    - has_classic: 2分 - 是否引用经典（诗词、古人名言）
-    - has_headings: 1分 - 是否有小标题结构
+    评分体系（规则总分 5 分）：
+    - in_length_range: 1.5分 - 字数是否在提示词要求范围内
     - para_count_reasonable: 1分 - 段落数是否合理（5-20段）
-    - has_3_points: 1分 - 是否有 3 个明显观点段落
-    - ending_good: 2分 - 结尾是否简短有力或有总结词
-    - in_length_range: 2分 - 字数是否达标
-    - avg_para_length_ok: 1分 - 平均段落长度是否合理（30-150字）
+    - avg_para_length_ok: 0.5分 - 平均段落长度是否合理（30-150字）
+    - has_3_points: 1分 - 中间是否有≥3个观点段落（结构完整性）
+    - has_headings: 1分 - 是否有小标题结构（格式规范性）
+
+    注意：开头质量、经典引用、内容深度、文笔、情感等维度由 AI 评估函数处理。
 
     Args:
         text: 待评估的文章文本
         length_range: 字数范围 (min, max)，None 则使用默认值 (400, 1500)
+
+    Returns:
+        包含规则评估结果的字典，rule_score 为规则得分（0-5分）
     """
     if length_range is None:
         length_range = (400, 1500)
@@ -477,28 +272,18 @@ def evaluate_article(text: str, length_range: Optional[Tuple[int, int]] = None) 
     paragraphs = [p for p in text.split("\n") if p.strip()]
     para_count = len(paragraphs)
 
-    # 1. 是否直接入题（首段是否很快出现核心话题关键词）
-    first_line = paragraphs[0].strip() if paragraphs else ""
-    intro_ok = any(kw in first_line for kw in ["老了", "人过六十", "退休", "这一生", "人到老年", "花甲", "古稀"])
+    # 1. 段落数是否合理（避免过度碎片化或过于冗长）
+    para_count_reasonable = 5 <= para_count <= 20
 
-    # 2. 经典引用检测（改进版）
-    # 检测书名号
-    has_book_marks = "《" in text and "》" in text
-    # 检测古人名/诗人名/现代作家
-    classic_authors = [
-        "孔子", "孟子", "庄子", "老子", "荀子",
-        "陶渊明", "苏轼", "杜甫", "李白", "白居易",
-        "王维", "李商隐", "杜牧", "陆游", "辛弃疾",
-        "诗经", "楚辞", "论语", "道德经", "战国策",
-        "汪曾祺", "龙应台", "史铁生", "杨绛", "季羡林",
-    ]
-    has_author = any(author in text for author in classic_authors)
-    # 检测引用标记词
-    quote_patterns = ["诗云", "诗曰", "曰", "曾经说过", "有诗为证", "写道", "说"]
-    has_quote = any(pattern in text for pattern in quote_patterns)
-    has_classic = has_book_marks or has_author or has_quote
+    # 2. 平均段落长度是否合理（避免碎片化）
+    avg_para_length = chars / para_count if para_count > 0 else 0
+    avg_para_length_ok = 30 <= avg_para_length <= 150
 
-    # 3. 是否有小标题结构（改进版）
+    # 3. 结构检测（中间是否有 3 个明显分段）
+    middle_para_count = max(0, para_count - 2)
+    has_3_points = middle_para_count >= 3
+
+    # 4. 是否有小标题结构（改进版）
     import re
     heading_patterns = [
         "^##\\s",  # Markdown 标题
@@ -519,127 +304,291 @@ def evaluate_article(text: str, length_range: Optional[Tuple[int, int]] = None) 
         if has_headings:
             break
 
-    # 4. 段落数是否合理（避免过度碎片化或过于冗长）
-    para_count_reasonable = 5 <= para_count <= 20
-
-    # 5. 结构检测（中间是否有 3 个明显分段）
-    middle_para_count = max(0, para_count - 2)
-    has_3_points = middle_para_count >= 3
-
-    # 6. 结尾是否简短有力或有总结词（改进版）
-    last_para = paragraphs[-1].strip() if paragraphs else ""
-    ending_short = len(last_para) <= 80
-    # 检测总结词
-    ending_patterns = ["总之", "所以", "因此", "综上", "真的，", "也就够了", "这才"]
-    has_ending_word = any(pattern in last_para for pattern in ending_patterns)
-    ending_good = ending_short or has_ending_word
-
-    # 7. 字数是否在指定范围内
+    # 5. 字数是否在指定范围内
     in_length_range = min_length <= chars <= max_length
 
-    # 8. 平均段落长度是否合理（避免碎片化）
-    avg_para_length = chars / para_count if para_count > 0 else 0
-    avg_para_length_ok = 30 <= avg_para_length <= 150
-
-    # 计算得分
-    score = 0
+    # 计算规则得分
+    rule_score = 0.0
     weights = {
-        "intro_ok": 2,
-        "has_classic": 2,
-        "has_headings": 1,
-        "para_count_reasonable": 1,
-        "has_3_points": 1,
-        "ending_good": 2,
-        "in_length_range": 2,
-        "avg_para_length_ok": 1,
+        "in_length_range": 1.5,
+        "para_count_reasonable": 1.0,
+        "avg_para_length_ok": 0.5,
+        "has_3_points": 1.0,
+        "has_headings": 1.0,
     }
 
-    details = {
-        "intro_ok": intro_ok,
-        "has_classic": has_classic,
-        "has_headings": has_headings,
-        "para_count_reasonable": para_count_reasonable,
-        "has_3_points": has_3_points,
-        "ending_good": ending_good,
+    rule_evaluations = {
         "in_length_range": in_length_range,
+        "para_count_reasonable": para_count_reasonable,
         "avg_para_length_ok": avg_para_length_ok,
+        "has_3_points": has_3_points,
+        "has_headings": has_headings,
+    }
+
+    for k, w in weights.items():
+        if rule_evaluations[k]:
+            rule_score += w
+
+    # 返回规则评估结果
+    details = {
+        "rule_score": round(rule_score, 2),  # 规则评估得分（0-5）
+        "ai_score": None,                    # AI评估得分（待填充，0-5）
+        "total_score": None,                 # 总分（待计算，0-10）
+        **rule_evaluations,                  # 各维度评估结果
         "chars": chars,
         "paragraphs": para_count,
         "avg_para_length": round(avg_para_length, 1),
         "length_range": f"{min_length}-{max_length}",
     }
 
-    for k, w in weights.items():
-        if details[k]:
-            score += w
-
-    details["score"] = score
     return details
 
 
-# ====== 4. 基于多模型结果，自动生成“提示词优化建议” ======
+def evaluate_article_via_ai(text: str, prompt: str) -> Dict[str, Any]:
+    """
+    使用AI模型对文本进行语义层面的评估。
+
+    评估维度（AI总分 5 分）：
+    - intro_quality: 1分 - 开头是否直接入题，有吸引力，符合人设
+    - classic_naturalness: 1分 - 经典引用是否自然恰当，与观点紧密相关
+    - content_depth: 1分 - 内容是否有深度，观点是否有启发性
+    - writing_fluency: 1分 - 文笔是否流畅自然，语言是否有节奏感
+    - emotional_resonance: 1分 - 是否能引发情感共鸣，是否打动人心（含AI痕迹检测）
+
+    Args:
+        text: 待评估的文章文本
+        prompt: 原始提示词（作为评估参考）
+
+    Returns:
+        包含AI评估结果的字典，ai_score 为AI评估总分（0-5分）
+    """
+    import json
+    import os
+
+    # 获取评估模型配置
+    meta_model = os.getenv("EVALUATION_MODEL") or "gpt-5.4"
+    meta_provider = os.getenv("EVALUATION_PROVIDER") or "openai"
+
+    meta_client = get_client(meta_provider)
+    if meta_client is None:
+        # 如果无法获取客户端，返回默认评估结果
+        return {
+            "ai_score": 0,
+            "ai_details": {},
+            "error": f"无法获取 {meta_provider} 客户端，请检查 .env 配置"
+        }
+
+    # 构造评估提示词
+    system_msg = (
+        "你是一位专业的文本质量评估专家，擅长评估中文文章的内容质量、文笔水平和情感表达。"
+        "你的任务是根据原始提示词的要求，对生成的文章进行客观、准确的评估。"
+    )
+
+    user_msg = textwrap.dedent(f"""
+        请根据以下原始提示词的要求，对文章进行评估。
+
+        原始提示词要求：
+        --- 提示词开始 ---
+        {prompt.strip()}
+        --- 提示词结束 ---
+
+        待评估文章：
+        --- 文章开始 ---
+        {text.strip()}
+        --- 文章结束 ---
+
+        请从以下5个维度进行评估，每个维度给出评分和理由：
+
+        1. 开头质量（1分）：
+           - 评分标准：开头是否直接入题，有吸引力，符合人设
+           - 0分：开头拖沓，没有吸引力，不符合人设
+           - 0.5分：开头尚可，但吸引力不足或人设不够明显
+           - 1分：开头直接入题，有吸引力，符合人设
+
+        2. 经典引用恰当性（1分）：
+           - 评分标准：经典引用是否自然恰当，与观点紧密相关
+           - 0分：没有引用或引用生硬、不相关
+           - 0.5分：有引用但不够自然或相关性一般
+           - 1分：引用自然恰当，与观点紧密相关
+
+        3. 内容深度与思想性（1分）：
+           - 评分标准：内容是否有深度，观点是否有启发性，避免空洞
+           - 0分：内容空洞，观点老套，没有启发性
+           - 0.5分：内容有一定深度，但观点不够深入
+           - 1分：内容有深度，观点有启发性，能引发思考
+
+        4. 文笔流畅度与可读性（1分）：
+           - 评分标准：文笔是否流畅自然，语言是否有节奏感，是否有人味儿
+           - 0分：文笔生硬，语言不流畅，AI痕迹明显
+           - 0.5分：文笔尚可，但流畅度不足或有AI痕迹
+           - 1分：文笔流畅自然，语言有节奏感，有人味儿
+
+        5. 情感共鸣（1分）：
+           - 评分标准：是否能引发情感共鸣，是否打动人心，是否有人味儿
+           - 0分：情感平淡，无法引发共鸣，AI痕迹明显
+           - 0.5分：有一定情感，但共鸣不足或有AI痕迹
+           - 1分：能引发情感共鸣，打动人心，有人味儿
+
+        请严格按照以下JSON格式返回评估结果：
+        {{
+          "intro_quality": {{"score": 1.0, "reason": "理由说明"}},
+          "classic_naturalness": {{"score": 0.5, "reason": "理由说明"}},
+          "content_depth": {{"score": 1.0, "reason": "理由说明"}},
+          "writing_fluency": {{"score": 1.0, "reason": "理由说明"}},
+          "emotional_resonance": {{"score": 0.5, "reason": "理由说明"}}
+        }}
+
+        注意：
+        - 只返回JSON，不要包含任何其他文字说明
+        - 每个维度的评分必须在规定范围内（0-1分）
+        - 理由说明要简明扼要，指出优点或不足
+        - 在"情感共鸣"维度中，要综合考虑情感表达和AI痕迹（人味儿）
+        """)
+
+    try:
+        # 调用AI模型进行评估
+        resp = meta_client.chat.completions.create(
+            model=meta_model,
+            messages=[
+                {"role": "system", "content": system_msg},
+                {"role": "user", "content": user_msg},
+            ],
+            temperature=0.2,  # 使用较低的temperature以提高稳定性
+        )
+
+        content = resp.choices[0].message.content or ""
+
+        # 解析JSON结果
+        # 尝试提取JSON部分（处理可能包含的额外文字）
+        json_start = content.find("{")
+        json_end = content.rfind("}") + 1
+
+        if json_start >= 0 and json_end > json_start:
+            json_str = content[json_start:json_end]
+            ai_result = json.loads(json_str)
+
+            # 计算AI评估总分（5分制）
+            ai_score = (
+                ai_result.get("intro_quality", {}).get("score", 0) +
+                ai_result.get("classic_naturalness", {}).get("score", 0) +
+                ai_result.get("content_depth", {}).get("score", 0) +
+                ai_result.get("writing_fluency", {}).get("score", 0) +
+                ai_result.get("emotional_resonance", {}).get("score", 0)
+            )
+
+            return {
+                "ai_score": round(ai_score, 2),
+                "ai_details": ai_result,
+            }
+        else:
+            return {
+                "ai_score": 0,
+                "ai_details": {},
+                "error": "AI返回结果无法解析为JSON"
+            }
+
+    except Exception as e:
+        return {
+            "ai_score": 0,
+            "ai_details": {},
+            "error": f"AI评估失败: {str(e)}"
+        }
+
+
+# ====== 4. 基于多模型结果，自动生成"提示词优化建议" ======
 
 
 def summarize_evaluations(results: List[Dict[str, Any]], length_range: Optional[Tuple[int, int]] = None) -> str:
     """
-    这里不用再调模型，直接基于规则结果给一点通用建议。
-    你后续也可以改成再调一个大模型，专门做 meta-分析。
+    基于多模型输出的共性表现，生成针对性的优化建议。
+
+    结合规则评估（结构、格式）和AI评估（内容、文笔、情感）的结果，
+    给出全面的提示词优化建议。
     """
     if not results:
         return "暂无结果，无法给出优化建议。"
 
-    # 统计常见问题
-    intro_bad = sum(1 for r in results if not r["evaluation"]["intro_ok"])
-    no_classic = sum(1 for r in results if not r["evaluation"]["has_classic"])
-    no_headings = sum(1 for r in results if not r["evaluation"]["has_headings"])
-    para_count_bad = sum(1 for r in results if not r["evaluation"]["para_count_reasonable"])
-    not_3_points = sum(1 for r in results if not r["evaluation"]["has_3_points"])
-    ending_bad = sum(1 for r in results if not r["evaluation"]["ending_good"])
-    wrong_length = sum(1 for r in results if not r["evaluation"]["in_length_range"])
-    avg_para_length_bad = sum(1 for r in results if not r["evaluation"]["avg_para_length_ok"])
-
     lines = []
     lines.append("优化建议（基于多模型输出的共性表现）：")
+    lines.append("")  # 空行分隔
 
+    # ====== AI评估维度建议 ======
+    ai_suggestions = []
+
+    # 1. 开头质量
+    intro_bad = sum(1 for r in results if r["evaluation"].get("ai_details", {}).get("intro_quality", {}).get("score", 1) < 0.6)
     if intro_bad > 0:
-        lines.append(
-            "- 开头要求可以更具体，比如限制首段在 2-3 句内直接点明「人过六十 / 老了才明白 / 花甲之年」的主题。"
-        )
-    if no_classic > 0:
-        lines.append(
-            "- 可以在提示词中补充：至少自然引用 1-2 句古诗词或经典名句（如《诗经》、论语、古人名言等），并与观点紧密相关。"
-        )
-    if no_headings > 0:
-        lines.append(
-            "- 建议添加小标题结构，使用「一、」「二、」「三、」或「1.」「2.」「3.」「其一、」「其二、」等形式标注观点段落。"
-        )
-    if para_count_bad > 0:
-        lines.append(
-            "- 文章段落数建议控制在 5-20 段之间，避免过度碎片化（每段 1-2 句）或过于冗长（整段不分）。"
-        )
-    if avg_para_length_bad > 0:
-        lines.append(
-            "- 每段平均长度建议在 30-150 字之间，避免过度碎片化或段落过长。"
-        )
-    if not_3_points > 0:
-        lines.append(
-            "- 强调中间必须拆成 3 个观点段落，每个观点 2-3 句，并用空行分隔，方便在公众号中阅读。"
-        )
-    if ending_bad > 0:
-        lines.append(
-            "- 对结尾加一句约束：用 1-2 句完成收束，不要在结尾开启新的故事或论证。可以使用「真的，够了」「这才...」等总结性表达。"
-        )
-    if wrong_length > 0:
-        # 使用实际的字数要求
-        if length_range:
-            lines.append(f"- 明确要求文章总字数控制在 {length_range[0]}-{length_range[1]} 字之间，避免过长或过短。")
-        else:
-            lines.append("- 明确要求文章总字数控制在指定范围内，避免过长或过短。")
+        ai_suggestions.append(f"- 开头质量（{intro_bad}个模型不佳）：首段必须在2-3句内直接切入主题，用具体场景（如清晨河边散步、夜里等女儿电话）而非抽象陈述。明确点出「人过六十/老了才明白/老了才发现」等主题之一。")
 
-    if len(lines) == 1:
-        lines.append(
-            "- 当前提示词整体表现稳定，可以在不改变结构的前提下，增加少量语气上的温度与画面感描述要求。"
-        )
+    # 2. 经典引用恰当性
+    classic_unnatural = sum(1 for r in results if r["evaluation"].get("ai_details", {}).get("classic_naturalness", {}).get("score", 1) < 0.6)
+    if classic_unnatural > 0:
+        ai_suggestions.append(f"- 经典引用（{classic_unnatural}个模型不自然）：引用经典时要像老教师随口而出的感慨，避免生硬堆砌。引用后要立即关联到观点，比如「古人说XXX，我想起来年轻时候...」。不要用「某某曾说过」的讲课腔。")
+
+    # 3. 内容深度与思想性
+    content_shallow = sum(1 for r in results if r["evaluation"].get("ai_details", {}).get("content_depth", {}).get("score", 1.5) < 1.0)
+    if content_shallow > 0:
+        ai_suggestions.append(f"- 内容深度（{content_shallow}个模型不足）：每个观点都要有具体的故事或细节支撑，避免空泛的道理说教。要写出个人独特体验，比如具体的一件事、一个场景、一个细节，而不是泛泛而谈。")
+
+    # 4. 文笔流畅度与可读性
+    writing_choppy = sum(1 for r in results if r["evaluation"].get("ai_details", {}).get("writing_fluency", {}).get("score", 1) < 0.6)
+    if writing_choppy > 0:
+        ai_suggestions.append(f"- 文笔流畅度（{writing_choppy}个模型不佳）：多使用短句和口语化表达，关键处可拉长形成散文式缓慢长句。语言要有节奏感，像老教师在老屋藤椅上聊天，不要用书面语和工整的排比句。")
+
+    # 5. 情感共鸣
+    low_emotion = sum(1 for r in results if r["evaluation"].get("ai_details", {}).get("emotional_resonance", {}).get("score", 1) < 0.6)
+    if low_emotion > 0:
+        ai_suggestions.append(f"- 情感共鸣（{low_emotion}个模型不足）：写出真实的生活细节和内心感受，用克制而温暖的基调。像对同龄朋友慢慢说话，不要端着、不要煽情、不要讲大道理。适当带点自嘲和温柔幽默。")
+
+    # 6. AI痕迹
+    ai_like = sum(1 for r in results if r["evaluation"].get("ai_details", {}).get("human_like", {}).get("score", 0.5) < 0.3)
+    if ai_like > 0:
+        ai_suggestions.append(f"- AI痕迹（{ai_like}个模型较重）：避免使用过于工整的排比、比喻等修辞手法，不要使用「首先...其次...最后...」「总之」「因此」等AI常用词。语言要朴素、真诚、有人味儿。")
+
+    # ====== 规则评估维度建议 ======
+    rule_suggestions = []
+
+    # 1. 字数要求
+    wrong_length = sum(1 for r in results if not r["evaluation"].get("in_length_range", True))
+    if wrong_length > 0:
+        if length_range:
+            rule_suggestions.append(f"- 字数控制（{wrong_length}个模型不符合）：明确要求文章总字数控制在 {length_range[0]}-{length_range[1]} 字之间，避免过长或过短。")
+
+    # 2. 段落数量
+    para_count_bad = sum(1 for r in results if not r["evaluation"].get("para_count_reasonable", True))
+    if para_count_bad > 0:
+        rule_suggestions.append(f"- 段落数量（{para_count_bad}个模型不合理）：文章段落数建议控制在 5-20 段之间，避免过度碎片化（每段1-2句）或过于冗长（整段不分）。")
+
+    # 3. 段落长度
+    avg_para_length_bad = sum(1 for r in results if not r["evaluation"].get("avg_para_length_ok", True))
+    if avg_para_length_bad > 0:
+        rule_suggestions.append(f"- 段落长度（{avg_para_length_bad}个模型不合理）：每段平均长度建议在 30-150 字之间，避免过度碎片化或段落过长。")
+
+    # 4. 结构完整性
+    not_3_points = sum(1 for r in results if not r["evaluation"].get("has_3_points", True))
+    if not_3_points > 0:
+        rule_suggestions.append(f"- 结构完整性（{not_3_points}个模型不符合）：中间必须拆成 3 个观点段落（和自己相处、和家人相处、和世界相处），每个观点 2-3 句，并用空行分隔。")
+
+    # 5. 小标题结构
+    no_headings = sum(1 for r in results if not r["evaluation"].get("has_headings", True))
+    if no_headings > 0:
+        rule_suggestions.append(f"- 小标题结构（{no_headings}个模型缺失）：建议添加小标题结构，使用「一、」「二、」「三、」或「1.」「2.」「3.」「其一、」「其二、」等形式标注观点段落。")
+
+    # ====== 输出建议 ======
+    if ai_suggestions:
+        lines.append("【AI评估维度建议】")
+        lines.extend(ai_suggestions)
+        lines.append("")
+
+    if rule_suggestions:
+        lines.append("【规则评估维度建议】")
+        lines.extend(rule_suggestions)
+        lines.append("")
+
+    # 如果没有明显问题
+    if not ai_suggestions and not rule_suggestions:
+        lines.append("- 当前提示词整体表现稳定，可以在不改变结构的前提下，增加少量语气上的温度与画面感描述要求。")
+        lines.append("- 建议尝试微调：让经典引用更自然、让故事细节更具体、让情感表达更克制温暖。")
 
     return "\n".join(lines)
 
@@ -648,8 +597,8 @@ def optimize_prompt_via_llm(
     original_prompt: str, eval_summary: str, new_version: int
 ) -> str:
     """
-    使用一个指定模型，基于原始提示词和本次评估总结，自动生成“下一版”完整提示词。
-    这样就不依赖硬编码的模板，而是走真正的“内容驱动优化”流程。
+    使用一个指定模型，基于原始提示词和本次评估总结，自动生成"下一版"完整提示词。
+    这样就不依赖硬编码的模板，而是走真正的"内容驱动优化"流程。
     """
     meta_model = os.getenv("PROMPT_OPTIMIZER_MODEL") or "gpt-5.4"
     meta_client = get_client(os.getenv("PROMPT_OPTIMIZER_PROVIDER") or "openai")
@@ -677,7 +626,7 @@ def optimize_prompt_via_llm(
         --- 评估总结结束 ---
 
         请在充分消化以上内容的基础上，生成一份新的完整提示词文本，要求：
-        1. 新提示词开头显式注明“提示词版本：v{new_version}”。
+        1. 新提示词开头显式注明"提示词版本：v{new_version}"。
         2. 明确写清：人设、写作风格、文章结构（含开头/中间3个观点/结尾）、内容方向、注意事项等关键信息。
         3. 必须针对评估总结中提到的问题给出对应的约束（例如：字数区间、是否引用经典、结构是否清晰等）。
         4. 用 Markdown 结构化书写，便于在文件中直接保存使用。
@@ -735,42 +684,41 @@ def save_evaluations_history(history: Dict[str, Any]) -> None:
 def calculate_version_summary(evaluations: List[Dict[str, Any]]) -> Dict[str, Any]:
     """
     计算单个版本的评估摘要。
+
+    基于新的混合评分体系（规则+AI），计算各维度的平均值。
     """
     if not evaluations:
         return {
-            "avg_score": 0,
-            "max_score": 0,
+            "avg_rule_score": 0,
+            "avg_ai_score": 0,
+            "avg_total_score": 0,
+            "max_total_score": 0,
+            "min_total_score": 0,
             "best_model": None,
             "model_count": 0,
-            "dimension_scores": {
-                "intro_ok": 0,
-                "has_classic": 0,
-                "has_3_points": 0,
-                "ending_concise": 0,
-                "in_length_range": 0,
-            },
         }
 
-    scores = [e["evaluation"]["score"] for e in evaluations]
-    max_score = max(scores)
+    # 提取各维度得分
+    rule_scores = [e["evaluation"].get("rule_score", 0) for e in evaluations]
+    ai_scores = [e["evaluation"].get("ai_score", 0) for e in evaluations]
+    total_scores = [e["evaluation"].get("total_score", 0) for e in evaluations]
+
+    # 找出最佳模型
+    max_total_score = max(total_scores)
+    min_total_score = min(total_scores)
     best_model = next(
-        (e["model"] for e in evaluations if e["evaluation"]["score"] == max_score),
+        (e["model"] for e in evaluations if e["evaluation"].get("total_score", 0) == max_total_score),
         None,
     )
 
-    # 计算各维度通过率
-    dimensions = ["intro_ok", "has_classic", "has_3_points", "ending_concise", "in_length_range"]
-    dimension_scores = {}
-    for dim in dimensions:
-        passed = sum(1 for e in evaluations if e["evaluation"].get(dim, False))
-        dimension_scores[dim] = passed / len(evaluations)
-
     return {
-        "avg_score": sum(scores) / len(scores),
-        "max_score": max_score,
+        "avg_rule_score": round(sum(rule_scores) / len(rule_scores), 2),
+        "avg_ai_score": round(sum(ai_scores) / len(ai_scores), 2),
+        "avg_total_score": round(sum(total_scores) / len(total_scores), 2),
+        "max_total_score": max_total_score,
+        "min_total_score": min_total_score,
         "best_model": best_model,
         "model_count": len(evaluations),
-        "dimension_scores": dimension_scores,
     }
 
 
@@ -797,43 +745,50 @@ def update_evaluations_history(
 def show_version_ranking(limit: int = 10) -> None:
     """
     展示版本排名列表。
+
+    显示每个版本的总分、规则分、AI分、最高分、模型数和时间。
     """
     history = load_evaluations_history()
     if not history:
         print("暂无评估历史记录。")
         return
 
-    # 按平均分排序
+    # 按平均总分排序
     versions = []
     for ver, data in history.items():
+        summary = data["summary"]
         versions.append(
             (
                 ver,
-                data["summary"]["avg_score"],
-                data["summary"]["max_score"],
-                data["summary"]["model_count"],
+                summary.get("avg_total_score", 0),
+                summary.get("avg_rule_score", 0),
+                summary.get("avg_ai_score", 0),
+                summary.get("max_total_score", 0),
+                summary.get("model_count", 0),
                 data["timestamp"],
             )
         )
 
     versions.sort(key=lambda x: x[1], reverse=True)
 
-    print(f"\n{'版本':<8} {'平均分':<8} {'最高分':<8} {'模型数':<8} {'时间'}")
-    print("-" * 70)
-    for ver, avg, max_score, count, timestamp in versions[:limit]:
+    print(f"\n{'版本':<8} {'总分':<8} {'规则分':<8} {'AI分':<8} {'最高分':<8} {'模型数':<8} {'时间'}")
+    print("-" * 90)
+    for ver, total, rule, ai, max_score, count, timestamp in versions[:limit]:
         # 只显示日期部分
         date = timestamp.split("T")[0]
-        print(f"{ver:<8} {avg:<8.2f} {max_score:<8} {count:<8} {date}")
+        print(f"{ver:<8} {total:<8.2f} {rule:<8.2f} {ai:<8.2f} {max_score:<8} {count:<8} {date}")
 
     # 找出历史最佳版本
     if versions:
-        best_ver, best_avg, best_max, _, _ = versions[0]
-        print(f"\n历史最佳版本: {best_ver}（平均分: {best_avg:.2f}，最高分: {best_max}）")
+        best_ver, best_total, best_rule, best_ai, best_max, _, _ = versions[0]
+        print(f"\n历史最佳版本: {best_ver}（总分: {best_total:.2f}，规则分: {best_rule:.2f}，AI分: {best_ai:.2f}，最高分: {best_max}）")
 
 
 def compare_with_best(version: int) -> None:
     """
     将当前版本与历史最佳版本进行对比。
+
+    对比总分、规则分、AI分三个维度。
     """
     history = load_evaluations_history()
     if not history or len(history) < 2:
@@ -841,12 +796,12 @@ def compare_with_best(version: int) -> None:
 
     # 找出历史最佳版本（排除当前版本）
     best_ver = None
-    best_avg = -1
+    best_total = -1
     for ver, data in history.items():
         if ver != f"v{version}":
-            avg = data["summary"]["avg_score"]
-            if avg > best_avg:
-                best_avg = avg
+            total = data["summary"].get("avg_total_score", 0)
+            if total > best_total:
+                best_total = total
                 best_ver = ver
 
     if best_ver is None:
@@ -856,18 +811,326 @@ def compare_with_best(version: int) -> None:
     if current_key not in history:
         return
 
-    current_avg = history[current_key]["summary"]["avg_score"]
-    diff = current_avg - best_avg
+    current_summary = history[current_key]["summary"]
+    best_summary = history[best_ver]["summary"]
+
+    current_total = current_summary.get("avg_total_score", 0)
+    current_rule = current_summary.get("avg_rule_score", 0)
+    current_ai = current_summary.get("avg_ai_score", 0)
+
+    best_total_val = best_summary.get("avg_total_score", 0)
+    best_rule = best_summary.get("avg_rule_score", 0)
+    best_ai = best_summary.get("avg_ai_score", 0)
+
+    diff = current_total - best_total_val
 
     print(f"\n版本对比: v{version} vs {best_ver}")
-    print(f"  当前版本平均分: {current_avg:.2f}")
-    print(f"  历史最佳平均分: {best_avg:.2f}")
+    print(f"  当前版本 - 总分: {current_total:.2f}, 规则分: {current_rule:.2f}, AI分: {current_ai:.2f}")
+    print(f"  历史最佳 - 总分: {best_total_val:.2f}, 规则分: {best_rule:.2f}, AI分: {best_ai:.2f}")
     if diff > 0:
-        print(f"  差异: +{diff:.2f} (当前版本更好)")
+        print(f"  总分差异: +{diff:.2f} (当前版本更好)")
     elif diff < 0:
-        print(f"  差异: {diff:.2f} (历史版本更好)")
+        print(f"  总分差异: {diff:.2f} (历史版本更好)")
     else:
-        print(f"  差异: 0 (持平)")
+        print(f"  总分差异: 0 (持平)")
+
+
+def compare_models(version: Optional[int] = None) -> None:
+    """
+    横向对比：展示同一提示词版本下不同模型的表现。
+
+    Args:
+        version: 提示词版本号，None 表示使用最新版本
+    """
+    # 确定版本
+    if version is None:
+        _, version = get_latest_prompt_file()
+
+    eval_file = OUTPUT_DIR / f"v{version}" / "evaluations.json"
+    if not eval_file.exists():
+        print(f"错误：未找到版本 v{version} 的评估结果文件")
+        return
+
+    with eval_file.open("r", encoding="utf-8") as f:
+        results = json.load(f)
+
+    if not results:
+        print(f"版本 v{version} 没有评估结果")
+        return
+
+    # 按总分排序
+    results_sorted = sorted(results, key=lambda x: x["evaluation"]["total_score"], reverse=True)
+
+    print(f"\n{'='*100}")
+    print(f"横向对比：提示词版本 v{version} - 各模型表现对比")
+    print(f"{'='*100}")
+
+    # 表格头部
+    print(f"\n{'排名':<6} {'模型':<35} {'总分':<10} {'规则分':<10} {'AI分':<10} {'字数':<10} {'段落数':<10}")
+    print("-" * 100)
+
+    # 表格内容
+    for idx, result in enumerate(results_sorted, 1):
+        model_name = f"{result['provider']}/{result['model']}"
+        eval_data = result["evaluation"]
+
+        total_score = eval_data.get("total_score", 0)
+        rule_score = eval_data.get("rule_score", 0)
+        ai_score = eval_data.get("ai_score", 0)
+        chars = eval_data.get("chars", 0)
+        paragraphs = eval_data.get("paragraphs", 0)
+
+        # 标记最佳表现
+        rank_marker = f"{idx}."
+        if idx == 1:
+            rank_marker = "🥇"
+        elif idx == 2:
+            rank_marker = "🥈"
+        elif idx == 3:
+            rank_marker = "🥉"
+
+        print(f"{rank_marker:<6} {model_name:<35} {total_score:<10.2f} {rule_score:<10.2f} {ai_score:<10.2f} {chars:<10} {paragraphs:<10}")
+
+    # 统计摘要
+    print("\n" + "=" * 100)
+    print("统计摘要:")
+    avg_total = sum(r["evaluation"]["total_score"] for r in results) / len(results)
+    avg_rule = sum(r["evaluation"]["rule_score"] for r in results) / len(results)
+    avg_ai = sum(r["evaluation"]["ai_score"] for r in results) / len(results)
+    max_score = max(r["evaluation"]["total_score"] for r in results)
+    min_score = min(r["evaluation"]["total_score"] for r in results)
+
+    print(f"  平均总分: {avg_total:.2f}/10")
+    print(f"  平均规则分: {avg_rule:.2f}/5")
+    print(f"  平均AI分: {avg_ai:.2f}/5")
+    print(f"  最高分: {max_score:.2f}/10")
+    print(f"  最低分: {min_score:.2f}/10")
+    print(f"  极差: {max_score - min_score:.2f}")
+    print("=" * 100)
+
+
+def compare_versions(model_filter: Optional[str] = None, limit: int = 10) -> None:
+    """
+    纵向对比：展示不同提示词版本在同一模型（或平均）下的表现。
+
+    Args:
+        model_filter: 模型名称过滤（如 "deepseek-v3.1"），None 表示对比所有模型的平均表现
+        limit: 显示的版本数量限制
+    """
+    history = load_evaluations_history()
+    if not history:
+        print("暂无评估历史记录")
+        return
+
+    # 按版本号排序
+    versions = sorted(history.keys(), key=lambda x: int(x.replace("v", "")) if x.replace("v", "").isdigit() else 0)
+
+    print(f"\n{'='*120}")
+    if model_filter:
+        print(f"纵向对比：模型 '{model_filter}' 在不同提示词版本下的表现")
+    else:
+        print(f"纵向对比：各提示词版本的平均表现（所有模型）")
+    print(f"{'='*120}")
+
+    # 收集数据
+    version_data = []
+    for ver in versions[:limit]:
+        summary = history[ver]["summary"]
+        evaluations = history[ver].get("evaluations", [])
+
+        if model_filter:
+            # 找到指定模型的数据
+            model_eval = next((e for e in evaluations if e["model"] == model_filter), None)
+            if model_eval:
+                version_data.append({
+                    "version": ver,
+                    "total_score": model_eval["evaluation"]["total_score"],
+                    "rule_score": model_eval["evaluation"]["rule_score"],
+                    "ai_score": model_eval["evaluation"]["ai_score"],
+                    "model_count": 1,
+                })
+        else:
+            # 使用平均数据
+            if summary.get("avg_total_score") is not None:
+                version_data.append({
+                    "version": ver,
+                    "total_score": summary["avg_total_score"],
+                    "rule_score": summary["avg_rule_score"],
+                    "ai_score": summary["avg_ai_score"],
+                    "model_count": summary["model_count"],
+                })
+
+    if not version_data:
+        print(f"未找到相关数据（模型过滤: {model_filter}）")
+        return
+
+    # 表格头部
+    print(f"\n{'版本':<8} {'总分':<10} {'规则分':<10} {'AI分':<10} {'模型数':<10} {'时间'}")
+    print("-" * 120)
+
+    # 表格内容
+    for data in version_data:
+        ver = data["version"]
+        total = data["total_score"]
+        rule = data["rule_score"]
+        ai = data["ai_score"]
+        count = data["model_count"]
+        timestamp = history[ver]["timestamp"].split("T")[0]
+
+        print(f"{ver:<8} {total:<10.2f} {rule:<10.2f} {ai:<10.2f} {count:<10} {timestamp}")
+
+    # 趋势分析
+    if len(version_data) >= 2:
+        print("\n" + "=" * 120)
+        print("趋势分析:")
+        first = version_data[0]
+        last = version_data[-1]
+
+        total_change = last["total_score"] - first["total_score"]
+        rule_change = last["rule_score"] - first["rule_score"]
+        ai_change = last["ai_score"] - first["ai_score"]
+
+        print(f"  从 {first['version']} 到 {last['version']}:")
+        print(f"    总分变化: {total_change:+.2f}")
+        print(f"    规则分变化: {rule_change:+.2f}")
+        print(f"    AI分变化: {ai_change:+.2f}")
+
+        if total_change > 0:
+            print(f"    结论: 提示词整体表现提升 ✅")
+        elif total_change < 0:
+            print(f"    结论: 提示词整体表现下降 ⚠️")
+        else:
+            print(f"    结论: 提示词整体表现持平 ➡️")
+
+    print("=" * 120)
+
+
+def show_evaluation_details(version: int, model: Optional[str] = None) -> None:
+    """
+    显示详细的评估结果，包括AI评估理由和规则评估详情。
+
+    Args:
+        version: 提示词版本号
+        model: 模型名称（如 "deepseek-v3.1"），None 表示显示该版本所有模型的摘要
+    """
+    eval_file = OUTPUT_DIR / f"v{version}" / "evaluations.json"
+    if not eval_file.exists():
+        print(f"错误：未找到版本 v{version} 的评估结果文件")
+        return
+
+    with eval_file.open("r", encoding="utf-8") as f:
+        results = json.load(f)
+
+    if not results:
+        print(f"版本 v{version} 没有评估结果")
+        return
+
+    if model:
+        # 显示特定模型的详细信息
+        result = next((r for r in results if r["model"] == model), None)
+        if not result:
+            print(f"未找到模型 '{model}' 在版本 v{version} 中的评估结果")
+            return
+
+        print(f"\n{'='*120}")
+        print(f"详细评估结果：v{version} - {result['provider']}/{result['model']}")
+        print(f"{'='*120}")
+
+        eval_data = result["evaluation"]
+
+        # 总体评分
+        print(f"\n【总体评分】")
+        print(f"  总分: {eval_data.get('total_score', 0):.2f}/10")
+        print(f"  规则分: {eval_data.get('rule_score', 0):.2f}/5")
+        print(f"  AI分: {eval_data.get('ai_score', 0):.2f}/5")
+
+        # 规则评估详情
+        print(f"\n【规则评估详情】")
+        print(f"  字数: {eval_data.get('chars', 0)} 字（要求范围: {eval_data.get('length_range', 'N/A')}）")
+        print(f"  字数达标: {'✅' if eval_data.get('in_length_range') else '❌'}")
+        print(f"  段落数: {eval_data.get('paragraphs', 0)} 段")
+        print(f"  段落数合理: {'✅' if eval_data.get('para_count_reasonable') else '❌'}")
+        print(f"  平均段落长度: {eval_data.get('avg_para_length', 0):.1f} 字")
+        print(f"  段落长度合理: {'✅' if eval_data.get('avg_para_length_ok') else '❌'}")
+        print(f"  结构完整性（≥3个观点段落）: {'✅' if eval_data.get('has_3_points') else '❌'}")
+        print(f"  小标题结构: {'✅' if eval_data.get('has_headings') else '❌'}")
+
+        # AI评估详情
+        print(f"\n【AI评估详情】")
+        ai_details = eval_data.get("ai_details", {})
+        if ai_details:
+            for dim, data in ai_details.items():
+                dim_names = {
+                    "intro_quality": "开头质量",
+                    "classic_naturalness": "经典引用恰当性",
+                    "content_depth": "内容深度与思想性",
+                    "writing_fluency": "文笔流畅度与可读性",
+                    "emotional_resonance": "情感共鸣",
+                    "human_like": "AI痕迹（人味儿）",
+                }
+                dim_name = dim_names.get(dim, dim)
+                score = data.get("score", 0)
+                reason = data.get("reason", "无理由")
+
+                # 评分可视化
+                if score >= 1.0:
+                    status = "✅ 优秀"
+                elif score >= 0.6:
+                    status = "🟡 良好"
+                elif score >= 0.3:
+                    status = "🟠 及格"
+                else:
+                    status = "🔴 需改进"
+
+                print(f"\n  {dim_name}（{score}/1.0 或 1.5）{status}")
+                print(f"    理由: {reason}")
+        else:
+            print("  无AI评估详情")
+
+        print(f"\n{'='*120}")
+
+    else:
+        # 显示该版本所有模型的摘要
+        print(f"\n{'='*120}")
+        print(f"版本 v{version} - 所有模型评估摘要")
+        print(f"{'='*120}")
+
+        for result in results:
+            eval_data = result["evaluation"]
+            print(f"\n【{result['provider']}/{result['model']}】")
+            print(f"  总分: {eval_data.get('total_score', 0):.2f}/10 (规则: {eval_data.get('rule_score', 0):.2f}/5, AI: {eval_data.get('ai_score', 0):.2f}/5)")
+            print(f"  字数: {eval_data.get('chars', 0)} 字, 段落数: {eval_data.get('paragraphs', 0)}")
+
+            # 显示主要问题
+            issues = []
+            if not eval_data.get('in_length_range'):
+                issues.append("字数不符合要求")
+            if not eval_data.get('has_headings'):
+                issues.append("缺少小标题结构")
+
+            ai_details = eval_data.get('ai_details', {})
+            if ai_details:
+                low_score_dims = [
+                    dim for dim, data in ai_details.items()
+                    if data.get('score', 0) < 0.6
+                ]
+                if low_score_dims:
+                    dim_names = {
+                        "intro_quality": "开头质量",
+                        "classic_naturalness": "经典引用",
+                        "content_depth": "内容深度",
+                        "writing_fluency": "文笔流畅度",
+                        "emotional_resonance": "情感共鸣",
+                        "human_like": "人味儿",
+                    }
+                    issues.extend([dim_names.get(dim, dim) for dim in low_score_dims])
+
+            if issues:
+                print(f"  需改进: {', '.join(issues)}")
+            else:
+                print(f"  表现良好 ✅")
+
+        print(f"\n{'='*120}")
 
 
 # ====== 6. 版本创建 ======
@@ -908,209 +1171,7 @@ def create_new_version(base_version: int, new_version: Optional[int] = None) -> 
     return new_path
 
 
-# ====== 7. 主流程 ======
-
-
-def run_single_generation(
-    topic: str,
-    structure_type: str = "场景感悟式",
-    provider: str = None,
-    model_name: str = None,
-    custom_title: str = None,
-    custom_structure: str = None,
-    output_file: str = None,
-) -> None:
-    """
-    单篇文章生成模式（使用新模块化系统）。
-
-    Args:
-        topic: 选题
-        structure_type: 结构类型
-        provider: 指定 provider（可选），不指定则使用第一个启用的模型
-        model_name: 指定模型名称（可选）
-        custom_title: 自定义标题（可选）
-        custom_structure: 自定义结构（可选），用于仿写爆文
-        output_file: 输出文件路径（可选）
-    """
-    print(f"== 使用模块化提示词系统 ==")
-    print(f"选题: {topic}")
-    print(f"结构: {structure_type}")
-
-    # 构建提示词
-    prompt = build_prompt(
-        topic=topic,
-        structure_type=structure_type,
-        custom_title=custom_title,
-        custom_structure=custom_structure,
-        use_base_prompt=True,
-    )
-
-    # 确定使用的模型
-    models_cfg = load_models()
-
-    if provider and model_name:
-        # 使用指定的模型
-        providers_to_try = [(provider, model_name)]
-    else:
-        # 使用第一个启用的模型
-        for provider_name, models_key in [
-            ("openai", "openai_models"),
-            ("anthropic", "anthropic_models"),
-            ("google", "google_models"),
-            ("deepseek", "deepseek_models"),
-        ]:
-            models = models_cfg.get(models_key, [])
-            for m in models:
-                if m.get("enabled", True):
-                    providers_to_try = [(provider_name, m["name"])]
-                    break
-            if providers_to_try:
-                break
-        else:
-            print("错误：未找到启用的模型，请在 models.json 中配置")
-            return
-
-    # 调用模型
-    for prov, mdl in providers_to_try:
-        print(f"\n== 调用 {prov} / {mdl} ==")
-        try:
-            article = generate_with_model(prov, mdl, prompt, topic=topic)
-        except Exception as e:
-            print(f"  调用失败：{e}")
-            continue
-
-        # 保存或输出
-        if output_file:
-            out_path = Path(output_file)
-            out_path.parent.mkdir(parents=True, exist_ok=True)
-            out_path.write_text(article, encoding="utf-8")
-            print(f"\n已保存到: {out_path}")
-        else:
-            print("\n" + "=" * 50)
-            print(article)
-            print("=" * 50)
-
-        # 评估文章
-        length_range = (1000, 1200)
-        evaluation = evaluate_article(article, length_range)
-        print(f"\n评估结果:")
-        print(f"  得分: {evaluation['score']}/12")
-        print(f"  字数: {evaluation['chars']}")
-        print(f"  段落数: {evaluation['paragraphs']}")
-        print(f"  是否在字数范围内: {'是' if evaluation['in_length_range'] else '否'}")
-        print(f"  是否引用经典: {'是' if evaluation['has_classic'] else '否'}")
-        print(f"  开头是否直接: {'是' if evaluation['intro_ok'] else '否'}")
-        print(f"  结尾是否简洁: {'是' if evaluation['ending_good'] else '否'}")
-
-        return
-
-    print("\n错误：所有模型调用失败")
-
-
-def run_batch_generation(
-    topics: List[str],
-    structure_types: List[str] = None,
-    provider: str = None,
-    model_name: str = None,
-    output_dir: str = None,
-) -> None:
-    """
-    批量生成模式（用于日更）。
-
-    Args:
-        topics: 选题列表
-        structure_types: 结构类型列表（可选），不指定则循环使用默认结构
-        provider: 指定 provider（可选）
-        model_name: 指定模型名称（可选）
-        output_dir: 输出目录（可选），默认为 outputs/batch/
-    """
-    if structure_types is None:
-        structure_types = ["场景感悟式", "对话展开式", "今昔对比式", "一事一议式"]
-
-    if output_dir is None:
-        output_dir = OUTPUT_DIR / "batch"
-    else:
-        output_dir = Path(output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    print(f"== 批量生成模式 ==")
-    print(f"选题数: {len(topics)}")
-    print(f"结构类型: {', '.join(structure_types)}")
-    print(f"输出目录: {output_dir}\n")
-
-    models_cfg = load_models()
-
-    # 确定使用的模型
-    if provider and model_name:
-        providers_to_try = [(provider, model_name)]
-    else:
-        for provider_name, models_key in [
-            ("openai", "openai_models"),
-            ("anthropic", "anthropic_models"),
-            ("google", "google_models"),
-            ("deepseek", "deepseek_models"),
-        ]:
-            models = models_cfg.get(models_key, [])
-            for m in models:
-                if m.get("enabled", True):
-                    providers_to_try = [(provider_name, m["name"])]
-                    break
-            if providers_to_try:
-                break
-
-    if not providers_to_try:
-        print("错误：未找到启用的模型")
-        return
-
-    prov, mdl = providers_to_try[0]
-    print(f"使用模型: {prov} / {mdl}\n")
-
-    results = []
-    for i, topic in enumerate(topics, 1):
-        # 循环使用结构类型
-        structure_type = structure_types[(i - 1) % len(structure_types)]
-
-        print(f"[{i}/{len(topics)}] 选题: {topic} ({structure_type})")
-
-        try:
-            prompt = build_prompt(
-                topic=topic,
-                structure_type=structure_type,
-                use_base_prompt=True,
-            )
-            article = generate_with_model(prov, mdl, prompt, topic=topic)
-
-            # 保存
-            safe_topic = topic.replace(" ", "_").replace("，", "_")[:30]
-            out_file = output_dir / f"{i:02d}_{safe_topic}.md"
-            out_file.write_text(article, encoding="utf-8")
-
-            # 评估
-            evaluation = evaluate_article(article, (1000, 1200))
-
-            results.append({
-                "topic": topic,
-                "structure": structure_type,
-                "file": str(out_file),
-                "score": evaluation["score"],
-                "chars": evaluation["chars"],
-            })
-
-            print(f"  ✓ 得分: {evaluation['score']}/12, 字数: {evaluation['chars']}, 已保存: {out_file.name}")
-
-        except Exception as e:
-            print(f"  ✗ 失败: {e}")
-            continue
-
-    # 汇总
-    print(f"\n== 批量生成完成 ==")
-    print(f"成功: {len(results)}/{len(topics)}")
-    if results:
-        avg_score = sum(r["score"] for r in results) / len(results)
-        print(f"平均分: {avg_score:.2f}")
-        print(f"\n最佳文章:")
-        best = max(results, key=lambda x: x["score"])
-        print(f"  {best['topic']} - {best['score']}/12 ({best['structure']})")
+# ====== 6. 主流程 ======
 
 
 def run_evaluation(base_version: Optional[int] = None, skip_optimize: bool = False) -> None:
@@ -1169,18 +1230,36 @@ def run_evaluation(base_version: Optional[int] = None, skip_optimize: bool = Fal
             out_file = run_output_dir / f"{provider}__{safe_model_name}.txt"
             out_file.write_text(article, encoding="utf-8")
 
-            # 自动评价（使用从提示词中提取的字数要求）
-            evaluation = evaluate_article(article, length_range)
+            # 1. 规则评估（使用从提示词中提取的字数要求）
+            rule_evaluation = evaluate_article(article, length_range)
+
+            # 2. AI评估（语义层面评估）
+            print(f"  正在进行AI评估...")
+            ai_evaluation = evaluate_article_via_ai(article, prompt)
+
+            # 3. 合并评估结果
+            combined_evaluation = {
+                **rule_evaluation,  # 规则评估结果
+                **ai_evaluation,    # AI评估结果
+                "total_score": rule_evaluation["rule_score"] + ai_evaluation.get("ai_score", 0),  # 计算总分
+            }
+
             all_results.append(
                 {
                     "provider": provider,
                     "model": model_name,
-                    "evaluation": evaluation,
+                    "evaluation": combined_evaluation,
                     "output_path": str(out_file),
                 }
             )
+
+            # 打印评分结果
+            rule_score = rule_evaluation["rule_score"]
+            ai_score = ai_evaluation.get("ai_score", 0)
+            total_score = combined_evaluation["total_score"]
             print(
-                f"  得分: {evaluation['score']}, 字数: {evaluation['chars']}, 段落数: {evaluation['paragraphs']}"
+                f"  规则分: {rule_score}/5, AI分: {ai_score}/5, 总分: {total_score}/10 | "
+                f"字数: {rule_evaluation['chars']}, 段落数: {rule_evaluation['paragraphs']}"
             )
 
     # 汇总评价并输出为 JSON（同样放到当前版本目录下）
@@ -1225,53 +1304,42 @@ def parse_args() -> argparse.Namespace:
     解析命令行参数。
     """
     parser = argparse.ArgumentParser(
-        description="提示词评估与优化工具（支持模块化提示词系统）",
+        description="提示词评估与优化工具",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例:
-  # 单篇生成模式（新模块化系统）
-  %(prog)s --generate "和老伴吵了一辈子，老了才发现"
-  %(prog)s --generate "女儿说挺好的" --structure 对话展开式
-  %(prog)s --generate "和老伴吵了一辈子" --title 《老伴炖的那碗汤》 --output article.md
-
-  # 批量生成模式（日更）
-  %(prog)s --batch "和老伴吵了一辈子" "女儿说挺好的" "半夜醒来才承认老了"
-  %(prog)s --batch topic1 topic2 topic3 --structures 场景感悟式 对话展开式
-
-  # 旧版评估模式（向后兼容）
+  # 运行评估
   %(prog)s --evaluate                          # 使用最新版提示词运行评估并生成新版本
   %(prog)s --evaluate --from-version 3         # 基于 v3 版本运行评估
   %(prog)s --evaluate --skip-optimize          # 运行评估但不生成新版本提示词
+
+  # 查看排名
   %(prog)s --ranking                           # 显示历史版本排名
 
-  # 版本创建
+  # 横向对比（同一提示词，不同模型）
+  %(prog)s --compare-models                    # 对比最新版本各模型表现
+  %(prog)s --compare-models --version 5        # 对比 v5 版本各模型表现
+
+  # 纵向对比（不同提示词，同一模型）
+  %(prog)s --compare-versions                  # 对比各版本平均表现
+  %(prog)s --compare-versions --model deepseek-v3.1  # 对比特定模型在各版本的表现
+
+  # 详细查看
+  %(prog)s --details --version 5               # 查看 v5 版本所有模型摘要
+  %(prog)s --details --version 5 --model deepseek-v3.2-exp  # 查看特定模型的详细评估
+
+  # 版本管理
   %(prog)s --create-version 1                  # 基于 v1 创建新版本（自动递增版本号）
   %(prog)s --create-version 1 --to 7           # 基于 v1 创建 v7 版本
-
-可用结构类型:
-  场景感悟式, 今昔对比式, 对话展开式, 三段递进式,
-  一事一议式, 问答体, 书信体, 日记体
         """,
     )
 
     # 模式选择（互斥）
     mode_group = parser.add_mutually_exclusive_group()
     mode_group.add_argument(
-        "--generate",
-        type=str,
-        metavar="TOPIC",
-        help="单篇生成模式：生成一篇文章（使用模块化系统）",
-    )
-    mode_group.add_argument(
-        "--batch",
-        nargs="+",
-        metavar="TOPIC",
-        help="批量生成模式：生成多篇文章（日更用）",
-    )
-    mode_group.add_argument(
         "--evaluate",
         action="store_true",
-        help="评估模式：运行多模型评估（旧版，向后兼容）",
+        help="运行多模型评估",
     )
     mode_group.add_argument(
         "--ranking",
@@ -1279,48 +1347,25 @@ def parse_args() -> argparse.Namespace:
         help="显示历史版本排名并退出",
     )
     mode_group.add_argument(
+        "--compare-models",
+        action="store_true",
+        help="横向对比：展示同一提示词版本下不同模型的表现",
+    )
+    mode_group.add_argument(
+        "--compare-versions",
+        action="store_true",
+        help="纵向对比：展示不同提示词版本的表现（平均或特定模型）",
+    )
+    mode_group.add_argument(
+        "--details",
+        action="store_true",
+        help="显示详细的评估结果（AI评估理由、规则评估详情）",
+    )
+    mode_group.add_argument(
         "--create-version",
         type=int,
         metavar="N",
         help="基于指定版本创建新版本（复制内容）",
-    )
-
-    # 单篇生成选项
-    parser.add_argument(
-        "--structure",
-        type=str,
-        default="场景感悟式",
-        help="结构类型（默认：场景感悟式）",
-    )
-    parser.add_argument(
-        "--title",
-        type=str,
-        help="自定义标题（可选）",
-    )
-    parser.add_argument(
-        "--custom-structure",
-        type=str,
-        help="自定义结构文本（可选，用于仿写爆文）",
-    )
-    parser.add_argument(
-        "--output",
-        type=str,
-        metavar="FILE",
-        help="输出文件路径（可选）",
-    )
-
-    # 批量生成选项
-    parser.add_argument(
-        "--structures",
-        nargs="+",
-        metavar="TYPE",
-        help="批量生成时使用的结构类型列表（可选）",
-    )
-    parser.add_argument(
-        "--batch-output",
-        type=str,
-        metavar="DIR",
-        help="批量生成输出目录（默认：outputs/batch/）",
     )
 
     # 评估模式选项
@@ -1336,18 +1381,18 @@ def parse_args() -> argparse.Namespace:
         help="跳过生成新版本提示词（评估模式）",
     )
 
-    # 模型选择
+    # 对比模式选项
     parser.add_argument(
-        "--provider",
-        type=str,
-        metavar="NAME",
-        help="指定 provider（如 openai、anthropic、google、deepseek）",
+        "--version",
+        type=int,
+        metavar="N",
+        help="指定提示词版本号（用于 --compare-models 和 --details）",
     )
     parser.add_argument(
         "--model",
         type=str,
         metavar="NAME",
-        help="指定模型名称",
+        help="指定模型名称（用于 --compare-versions 和 --details）",
     )
 
     # 版本创建选项
@@ -1367,34 +1412,26 @@ if __name__ == "__main__":
     if args.ranking:
         # 显示排名
         show_version_ranking()
+    elif args.compare_models:
+        # 横向对比模式
+        compare_models(version=args.version)
+    elif args.compare_versions:
+        # 纵向对比模式
+        compare_versions(model_filter=args.model)
+    elif args.details:
+        # 详细查看模式
+        if args.version is None:
+            print("错误：--details 需要指定 --version 参数")
+            sys.exit(1)
+        show_evaluation_details(version=args.version, model=args.model)
     elif args.create_version is not None:
         # 创建新版本模式
         create_new_version(args.create_version, args.to)
-    elif args.generate:
-        # 单篇生成模式（新）
-        run_single_generation(
-            topic=args.generate,
-            structure_type=args.structure,
-            provider=args.provider,
-            model_name=args.model,
-            custom_title=args.title,
-            custom_structure=args.custom_structure,
-            output_file=args.output,
-        )
-    elif args.batch:
-        # 批量生成模式（新）
-        run_batch_generation(
-            topics=args.batch,
-            structure_types=args.structures,
-            provider=args.provider,
-            model_name=args.model,
-            output_dir=args.batch_output,
-        )
     elif args.evaluate:
-        # 评估模式（向后兼容）
+        # 评估模式
         run_evaluation(base_version=args.from_version, skip_optimize=args.skip_optimize)
     else:
-        # 默认：单篇生成示例
+        # 默认：显示帮助
         parser.print_help()
-        print("\n提示：使用 --generate 或 --batch 开始生成文章，或使用 --evaluate 运行评估")
+        print("\n提示：使用 --evaluate 运行评估，或使用 --ranking 查看版本排名")
 

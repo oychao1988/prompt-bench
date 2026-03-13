@@ -12,7 +12,7 @@ PromptBench 开发指南 - 提示词评估与优化工具。
 
 **核心功能**：
 - 多模型并行评估（使用 models.json 配置）
-- 规则引擎自动评分（8维度，12分制）
+- 混合评估体系（规则6分 + AI评估6分，总分12分）
 - 版本管理与历史追踪
 - 自动迭代优化提示词
 
@@ -82,10 +82,12 @@ uv run evaluate_prompts.py --evaluate --skip-optimize
 | 环境加载 | `load_env_from_dotenv()`, `get_client()` | ~23-74 |
 | 版本管理 | `get_latest_prompt_file()`, `load_prompt()` | ~81-114 |
 | 模型调用 | `call_llm()`, `generate_with_model()` | ~122-206 |
-| 规则评估 | `evaluate_article()`, `extract_length_requirement()` | ~206-376 |
-| 评估总结 | `summarize_evaluations()`, `optimize_prompt_via_llm()` | ~377-493 |
-| 版本历史 | `update_evaluations_history()`, `show_version_ranking()` | ~511-627 |
-| 评估流程 | `run_evaluation()` | ~708-813 |
+| 规则评估 | `evaluate_article()`, `extract_length_requirement()` | ~245-344 |
+| AI评估 | `evaluate_article_via_ai()` | ~347-503 |
+| 评估总结 | `summarize_evaluations()`, `optimize_prompt_via_llm()` | ~509-570, ~573-654 |
+| 版本历史 | `calculate_version_summary()`, `show_version_ranking()` | ~692-731, ~753-787 |
+| 版本对比 | `compare_with_best()` | ~790-826 |
+| 评估流程 | `run_evaluation()` | ~840-944 |
 
 ## Preferences
 
@@ -105,14 +107,38 @@ uv run evaluate_prompts.py --evaluate --skip-optimize
 ### ⚠️ 注意事项
 - 评估结果自动保存到 `outputs/v{N}/`
 - 优化器默认使用 `gpt-5.4`，可通过 `PROMPT_OPTIMIZER_MODEL` 修改
+- AI评估默认使用 `gpt-5.4`，可通过 `EVALUATION_MODEL` 修改
 - 规则评估权重在 `evaluate_article()` 的 `weights` 字典中定义
+- AI评估维度在 `evaluate_article_via_ai()` 的提示词中定义
 
 ## Development Workflow
 
-1. **修改评估规则**：编辑 `evaluate_article()`（~245-376行）
-2. **添加新维度**：在 `evaluate_article()` 中添加检测逻辑和权重
-3. **修改优化逻辑**：编辑 `optimize_prompt_via_llm()`（~441-493行）
+1. **修改规则评估**：编辑 `evaluate_article()`（~245-344行）
+2. **修改AI评估**：编辑 `evaluate_article_via_ai()`（~347-503行）
+3. **修改优化逻辑**：编辑 `summarize_evaluations()`（~509-570行）
 4. **更新文档**：修改后必须更新 CLAUDE.md 、USAGE.md 、README.md
+
+## 评分体系
+
+### 总分：10分（规则5分 + AI评估5分）
+
+#### 规则评估（5分）
+| 维度 | 分值 | 检测规则 |
+|------|------|----------|
+| `in_length_range` | 1.5分 | 字数是否在提示词要求范围内 |
+| `para_count_reasonable` | 1分 | 段落数是否合理（5-20段） |
+| `avg_para_length_ok` | 0.5分 | 平均段落长度是否合理（30-150字） |
+| `has_3_points` | 1分 | 中间是否有≥3个观点段落 |
+| `has_headings` | 1分 | 是否有小标题结构 |
+
+#### AI评估（5分）
+| 维度 | 分值 | 评估标准 |
+|------|------|----------|
+| `intro_quality` | 1分 | 开头是否直接入题，有吸引力，符合人设 |
+| `classic_naturalness` | 1分 | 经典引用是否自然恰当，与观点紧密相关 |
+| `content_depth` | 1分 | 内容是否有深度，观点是否有启发性 |
+| `writing_fluency` | 1分 | 文笔是否流畅自然，语言是否有节奏感，有人味儿 |
+| `emotional_resonance` | 1分 | 是否能引发情感共鸣，打动人心 |
 
 ## Related Documentation
 
