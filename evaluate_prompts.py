@@ -125,6 +125,7 @@ def call_llm(
     prompt: str,
     topic: str = None,
     keywords: List[str] = None,
+    max_tokens: int = None,
 ) -> str:
     """
     通过 OpenAI 兼容接口调用任意模型。
@@ -148,9 +149,10 @@ def call_llm(
     else:
         user_content = "请根据以上要求，写一篇完整的公众号文章。"
 
-    resp = client.chat.completions.create(
-        model=model_name,
-        messages=[
+    # 构建 API 参数
+    api_params = {
+        "model": model_name,
+        "messages": [
             {
                 "role": "system",
                 "content": prompt,
@@ -160,8 +162,12 @@ def call_llm(
                 "content": user_content,
             },
         ],
-        temperature=0.8,
-    )
+        "temperature": 0.8,
+    }
+    if max_tokens is not None:
+        api_params["max_tokens"] = max_tokens
+
+    resp = client.chat.completions.create(**api_params)
 
     # 验证响应格式
     if not hasattr(resp, 'choices'):
@@ -1174,15 +1180,40 @@ def create_new_version(base_version: int, new_version: Optional[int] = None) -> 
 # ====== 6. 主流程 ======
 
 
-def run_evaluation(base_version: Optional[int] = None, skip_optimize: bool = False) -> None:
+def run_evaluation(base_version: Optional[int] = None, skip_optimize: bool = False, test_models: bool = False, auto_disable: bool = False) -> None:
     """
     运行评估流程。
 
     Args:
         base_version: 基线提示词版本号，None 表示使用最新版本
         skip_optimize: 是否跳过生成新版本提示词
+        test_models: 是否先测试模型连通性
+        auto_disable: 是否自动禁用失败的模型
     """
     models_cfg = load_models()
+
+    # 测试模型连通性（如果启用）
+    if test_models:
+        print("\n" + "=" * 70)
+        print("正在测试模型连通性...")
+        print("=" * 70)
+
+        # 调用独立的测试脚本
+        try:
+            import subprocess
+            cmd = [sys.executable, str(BASE_DIR / "test_models.py")]
+            if auto_disable:
+                cmd.append("--auto-disable")
+            result = subprocess.run(cmd, cwd=str(BASE_DIR), check=True)
+            if result.returncode == 0:
+                print("\n模型测试完成，无失败的模型")
+            else:
+                print("\n注意：有模型测试失败")
+        except Exception as e:
+            print(f"\n模型测试脚本执行失败: {e}")
+            print("跳过模型连通性测试，继续评估...")
+
+        print("=" * 70)
 
     # 确定基线提示词版本
     if base_version is None:
@@ -1380,6 +1411,16 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="跳过生成新版本提示词（评估模式）",
     )
+    parser.add_argument(
+        "--test-models",
+        action="store_true",
+        help="评估前先测试模型连通性",
+    )
+    parser.add_argument(
+        "--auto-disable",
+        action="store_true",
+        help="自动禁用连通性测试失败的模型（需配合 --test-models 使用）",
+    )
 
     # 对比模式选项
     parser.add_argument(
@@ -1429,7 +1470,12 @@ if __name__ == "__main__":
         create_new_version(args.create_version, args.to)
     elif args.evaluate:
         # 评估模式
-        run_evaluation(base_version=args.from_version, skip_optimize=args.skip_optimize)
+        run_evaluation(
+            base_version=args.from_version,
+            skip_optimize=args.skip_optimize,
+            test_models=args.test_models,
+            auto_disable=args.auto_disable,
+        )
     else:
         # 默认：显示帮助
         parser.print_help()
