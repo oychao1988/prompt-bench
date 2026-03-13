@@ -1,256 +1,258 @@
-# 使用说明：evaluate_prompts.py 模块化提示词系统
+# PromptBench 使用说明
 
-## 📁 新的文档结构
+提示词评估与优化工具 - 通过多模型并行测试、规则引擎评分、自动迭代优化，帮助您找到最佳提示词版本。
 
-```
-prompts/
-├── v5_base.md              # 基础提示词（人设+风格+方向）
-├── structures_library.md   # 结构库（8种文章结构）
-└── titles_library.md       # 标题库（10种标题类型）
-```
+## 📖 项目简介
+
+**PromptBench** 是一个专业的提示词评估与优化工具，通过多模型并行测试、规则引擎评分、自动迭代优化，帮助您找到最佳提示词版本。
+
+**适用场景**：
+- 测试不同版本的提示词效果
+- 对比不同模型对同一提示词的响应
+- 基于评估结果自动优化提示词
+- 追踪提示词版本历史和性能变化
 
 ---
 
 ## 🚀 快速开始
 
-### 1. 单篇生成模式
-
-**基础用法**：
-```bash
-python evaluate_prompts.py --generate "和老伴吵了一辈子，老了才发现"
-```
-
-**指定结构**：
-```bash
-python evaluate_prompts.py --generate "女儿说挺好的" --structure 对话展开式
-```
-
-**自定义标题和输出文件**：
-```bash
-python evaluate_prompts.py --generate "和老伴吵了一辈子" \
-  --title "《老伴炖的那碗汤，我喝了一辈子》" \
-  --output outputs/article.md
-```
-
-**指定模型**：
-```bash
-python evaluate_prompts.py --generate "半夜醒来才承认老了" \
-  --provider deepseek \
-  --model deepseek-v3.1
-```
-
----
-
-### 2. 批量生成模式（日更用）
-
-**基础用法**：
-```bash
-python evaluate_prompts.py --batch \
-  "和老伴吵了一辈子，老了才发现" \
-  "女儿说挺好的，我知道她在硬撑" \
-  "半夜醒来，我才真正承认自己老了"
-```
-
-**指定结构循环**：
-```bash
-python evaluate_prompts.py --batch topic1 topic2 topic3 \
-  --structures 场景感悟式 对话展开式 今昔对比式
-```
-
-**指定输出目录**：
-```bash
-python evaluate_prompts.py --batch topic1 topic2 topic3 \
-  --batch-output outputs/week1/
-```
-
----
-
-### 3. 仿写爆文模式
+### 1. 环境准备
 
 ```bash
-python evaluate_prompts.py --generate "老伴住院那周，我才明白了一个道理" \
-  --custom-structure '开头：老伴住院那周，我一个人在家
-中间：三个场景
-  - 场景1：一个人做饭，不知道做什么
-  - 场景2：晚上家里太安静，睡不着
-  - 场景3：想打电话给女儿，又怕她担心
-结尾：一句劝慰'
+# 复制环境变量模板
+cp .env.example .env
+
+# 编辑 .env 文件，添加 API 配置
+# vim .env
 ```
 
----
+### 2. 安装依赖
 
-## 📋 可用结构类型
+```bash
+# 使用 pip
+pip install openai python-dotenv
 
-| 结构类型 | 适用场景 | 示例 |
-|---------|---------|------|
-| 场景感悟式 | 人生感悟、处世智慧、独处安宁 | 《半夜醒来，我才真正承认自己老了》 |
-| 今昔对比式 | 衰老反思、观念变化、时代记忆 | 《以前总觉得时间慢，现在觉得快》 |
-| 对话展开式 | 子女关系、老伴相处、朋友交往 | 《女儿说"挺好的"》 |
-| 三段递进式 | 深度思考、价值观反思 | 《退休半年，我才慢慢懂了》 |
-| 一事一议式 | 具体事件、当天见闻、短篇随笔 | 《河边那对老夫妻》 |
-| 问答体 | 问答回信、读者互动 | 《有读者问我"怎么和老伴相处"》 |
-| 书信体 | 写给特定对象、情感倾诉 | 《写给在外地的女儿》 |
-| 日记体 | 当天记录、碎片串联 | 《今天的三件小事》 |
-
----
-
-## 🎯 命令行参数说明
-
-### 模式选择（互斥，选一个）
-
-| 参数 | 说明 |
-|------|------|
-| `--generate TOPIC` | 单篇生成模式 |
-| `--batch TOPIC...` | 批量生成模式 |
-| `--evaluate` | 评估模式（旧版，向后兼容） |
-| `--ranking` | 显示历史版本排名 |
-| `--create-version N` | 基于指定版本创建新版本 |
-
-### 单篇生成选项
-
-| 参数 | 说明 | 默认值 |
-|------|------|--------|
-| `--structure TYPE` | 结构类型 | 场景感悟式 |
-| `--title TITLE` | 自定义标题 | 自动生成 |
-| `--custom-structure TEXT` | 自定义结构（仿写爆文） | - |
-| `--output FILE` | 输出文件路径 | 打印到终端 |
-
-### 批量生成选项
-
-| 参数 | 说明 | 默认值 |
-|------|------|--------|
-| `--structures TYPE...` | 结构类型列表 | 自动循环使用 |
-| `--batch-output DIR` | 输出目录 | outputs/batch/ |
-
-### 通用选项
-
-| 参数 | 说明 |
-|------|------|
-| `--provider NAME` | 指定 provider（openai/anthropic/google/deepseek） |
-| `--model NAME` | 指定模型名称 |
-
----
-
-## 📊 输出示例
-
-### 单篇生成输出
-
-```
-== 使用模块化提示词系统 ==
-选题: 和老伴吵了一辈子，老了才发现
-结构: 对话展开式
-
-== 调用 deepseek / deepseek-v3.1 ==
-
-==================================================
-[生成的文章内容...]
-==================================================
-
-评估结果:
-  得分: 10/12
-  字数: 1156
-  段落数: 8
-  是否在字数范围内: 是
-  是否引用经典: 是
-  开头是否直接: 是
-  结尾是否简洁: 是
-
-已保存到: outputs/article.md
+# 或使用 uv（推荐）
+uv pip install openai python-dotenv
 ```
 
-### 批量生成输出
-
-```
-== 批量生成模式 ==
-选题数: 7
-结构类型: 场景感悟式, 对话展开式, 今昔对比式, 一事一议式
-输出目录: outputs/batch
-
-使用模型: deepseek / deepseek-v3.1
-
-[1/7] 选题: 和老伴吵了一辈子，老了才发现 (场景感悟式)
-  ✓ 得分: 10/12, 字数: 1156, 已保存: 01_和老伴吵了一辈子，老了才发现.md
-
-[2/7] 选题: 女儿说挺好的，我知道她在硬撑 (对话展开式)
-  ✓ 得分: 9/12, 字数: 1089, 已保存: 02_女儿说挺好的，我知道她在硬撑.md
-
-...
-
-== 批量生成完成 ==
-成功: 7/7
-平均分: 9.57
-
-最佳文章:
-  和老伴吵了一辈子，老了才发现 - 11/12 (场景感悟式)
-```
-
----
-
-## 🔄 旧版兼容性
-
-原有的评估模式仍然可用：
+### 3. 运行第一次评估
 
 ```bash
 # 使用最新版提示词运行评估
-python evaluate_prompts.py --evaluate
-
-# 基于 v3 版本运行评估
-python evaluate_prompts.py --evaluate --from-version 3
-
-# 运行评估但不生成新版本
-python evaluate_prompts.py --evaluate --skip-optimize
-
-# 显示历史版本排名
-python evaluate_prompts.py --ranking
+uv run evaluate_prompts.py --evaluate
 ```
 
 ---
 
-## 💡 使用场景
+## 📋 核心命令
 
-### 场景1：日常单篇生成
+### 运行评估
 
 ```bash
-# 每天生成一篇文章
-python evaluate_prompts.py --generate "选题" --structure 结构 --output article.md
+# 使用最新版提示词运行评估
+uv run evaluate_prompts.py --evaluate
+
+# 基于指定版本运行评估（如 v3）
+uv run evaluate_prompts.py --evaluate --from-version 3
+
+# 运行评估但不生成新版本（仅测试）
+uv run evaluate_prompts.py --evaluate --skip-optimize
 ```
 
-### 场景2：批量生成一周内容
+### 查看排名
 
 ```bash
-# 周一晚上批量生成下周7篇
-python evaluate_prompts.py --batch \
-  "周一选题" "周二选题" "周三选题" "周四选题" \
-  "周五选题" "周六选题" "周日选题" \
-  --batch-output outputs/week2/
+# 显示所有历史版本的排名
+uv run evaluate_prompts.py --ranking
 ```
 
-### 场景3：仿写爆文
+### 版本管理
 
 ```bash
-# 分析爆文结构，用喜生口吻重写
-python evaluate_prompts.py --generate "老伴住院那周，我才明白了一个道理" \
-  --custom-structure '[爆文结构]'
+# 基于现有版本创建新版本（复制内容）
+uv run evaluate_prompts.py --create-version 4
+
+# 基于现有版本创建指定版本号
+uv run evaluate_prompts.py --create-version 4 --to 7
 ```
 
-### 场景4：A/B测试不同结构
+---
+
+## 🔄 评估工作流程
+
+```
+┌─────────────────────┐
+│  1. 准备提示词版本    │
+│  prompts/v{N}.md    │
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│  2. 运行评估         │
+│  --evaluate         │
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│  3. 多模型并行测试   │
+│  (根据 models.json) │
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│  4. 规则引擎评分     │
+│  (8维度自动评估)     │
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│  5. 生成评估报告     │
+│  outputs/v{N}/      │
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│  6. 自动优化建议     │
+│  (生成下一版提示词)   │
+└─────────────────────┘
+```
+
+---
+
+## 📊 评估结果说明
+
+### 输出目录结构
+
+```
+outputs/
+└── v4/                              # 版本 4 的评估结果
+    ├── deepseek__deepseek-v3.1.txt  # 各模型生成的文章
+    ├── anthropic__claude-opus-4-5-20251101.txt
+    ├── google__gemini-3.1-pro-preview.txt
+    └── evaluations.json             # 评估报告（JSON 格式）
+```
+
+### evaluations.json 格式
+
+```json
+[
+  {
+    "provider": "deepseek",
+    "model": "deepseek-v3.1",
+    "evaluation": {
+      "score": 10,
+      "intro_ok": true,
+      "has_classic": true,
+      "has_3_points": true,
+      "ending_good": true,
+      "in_length_range": true,
+      "chars": 1156,
+      "paragraphs": 8
+    },
+    "output_path": "outputs/v4/deepseek__deepseek-v3.1.txt"
+  }
+]
+```
+
+### 评分维度说明
+
+| 维度 | 权重 | 检测规则 |
+|------|------|----------|
+| `intro_ok` | 2分 | 首段含"老了"/"人过六十"/"退休"等关键词 |
+| `has_classic` | 2分 | 含《》或古人名/诗书名 |
+| `has_3_points` | 1分 | 中间段落数 ≥ 3 |
+| `ending_good` | 2分 | 结尾 ≤ 80字或有总结词 |
+| `in_length_range` | 2分 | 字数在提示词要求范围内 |
+| `has_headings` | 1分 | 有小标题结构 |
+| `para_count_reasonable` | 1分 | 段落数 5-20 |
+| `avg_para_length_ok` | 1分 | 平均段落长度 30-150字 |
+| **总分** | **12分** | - |
+
+---
+
+## 🎯 使用场景
+
+### 场景1：测试新提示词
 
 ```bash
-# 同一选题，测试不同结构的效果
-python evaluate_prompts.py --generate "和老伴吵了一辈子" \
-  --structure 场景感悟式 --output test1.md
+# 1. 创建新的提示词版本
+cp prompts/v4.md prompts/v5.md
+# 编辑 v5.md，优化提示词内容
 
-python evaluate_prompts.py --generate "和老伴吵了一辈子" \
-  --structure 对话展开式 --output test2.md
+# 2. 运行评估
+uv run evaluate_prompts.py --evaluate --from-version 5
 
-# 对比两篇文章的数据
+# 3. 查看结果
+cat outputs/v5/evaluations.json
+```
+
+### 场景2：对比历史版本
+
+```bash
+# 1. 查看版本排名
+uv run evaluate_prompts.py --ranking
+
+# 输出示例：
+# 版本     平均分   最高分   模型数   时间
+# v4       9.50     11       5       2026-03-12
+# v3       8.75     10       5       2026-03-11
+# v1       8.20     10       5       2026-03-10
+```
+
+### 场景3：基于历史版本重新优化
+
+```bash
+# 基于 v3 重新开始评估（跳过 v4）
+uv run evaluate_prompts.py --evaluate --from-version 3
+
+# 这将：
+# 1. 使用 v3 提示词运行评估
+# 2. 自动生成 v4（新的优化版本）
+```
+
+### 场景4：仅测试不优化
+
+```bash
+# 测试提示词效果，但不生成下一版
+uv run evaluate_prompts.py --evaluate --skip-optimize
 ```
 
 ---
 
 ## ⚙️ 配置说明
 
-### .env 文件
+### models.json
+
+控制哪些模型参与评估：
+
+```json
+{
+  "openai_models": [
+    {
+      "provider": "xiaoai",
+      "name": "gpt-5.1-2025-11-13",
+      "enabled": true
+    }
+  ],
+  "anthropic_models": [
+    {
+      "provider": "xiaoai",
+      "name": "claude-opus-4-5-20251101",
+      "enabled": true
+    }
+  ],
+  "deepseek_models": [
+    {
+      "provider": "xiaoai",
+      "name": "deepseek-v3.1",
+      "enabled": false  # 暂时禁用
+    }
+  ]
+}
+```
+
+### .env 配置
 
 ```bash
 # 通用配置（所有 provider 兜底）
@@ -258,99 +260,163 @@ llm_base_url=https://api.example.com/v1
 llm_api_key=your-api-key
 
 # 或按 provider 分别配置
-deepseek_base_url=https://api.deepseek.com
-deepseek_api_key=your-deepseek-key
-```
-
-### models.json
-
-```json
-{
-  "deepseek_models": [
-    {
-      "provider": "deepseek",
-      "name": "deepseek-v3.1",
-      "enabled": true
-    }
-  ]
-}
+xiaoai_base_url=https://api.xiaoai.com/v1
+xiaoai_api_key=your-xiaoai-key
 ```
 
 ---
 
-## 🐛 故障排除
+## 📝 提示词版本管理
 
-### 问题：未找到基础提示词文件
+### 创建新版本
 
+**方式1：自动生成**
+```bash
+uv run evaluate_prompts.py --evaluate
+# 评估完成后自动生成 v{N+1}.md
 ```
-RuntimeError: 未找到基础提示词文件：prompts/v5_base.md
+
+**方式2：手动创建**
+```bash
+uv run evaluate_prompts.py --create-version 4
+# 基于 v4 创建 v5（自动递增）
+
+uv run evaluate_prompts.py --create-version 4 --to 7
+# 基于 v4 创建 v7（指定版本号）
 ```
 
-**解决**：确认 `prompts/v5_base.md`、`structures_library.md`、`titles_library.md` 三个文件存在。
+### 版本命名规范
+
+- 文件名：`v{数字}.md`
+- 数字递增：v1.md → v2.md → v3.md ...
+- 保持连续：避免跳号（除非有意为之）
 
 ---
 
-### 问题：未找到启用的模型
+## 🛠️ 故障排除
+
+### 问题1：未找到提示词文件
+
+```
+RuntimeError: 未找到提示词文件：prompts/v5.md
+```
+
+**解决**：
+- 检查版本号是否正确
+- 确认文件存在于 `prompts/` 目录
+
+### 问题2：未找到启用的模型
 
 ```
 错误：未找到启用的模型，请在 models.json 中配置
 ```
 
-**解决**：检查 `models.json`，确保至少有一个模型的 `"enabled": true`。
+**解决**：
+- 检查 `models.json`
+- 确保至少有一个模型的 `"enabled": true`
 
----
-
-### 问题：API 调用失败
+### 问题3：API 调用失败
 
 ```
 调用失败：Incorrect API key provided
 ```
 
-**解决**：检查 `.env` 文件，确认 API 密钥配置正确。
+**解决**：
+- 检查 `.env` 文件中的 API 密钥配置
+- 确认 provider 名称与 `models.json` 一致
+
+### 问题4：评估历史为空
+
+```
+暂无评估历史记录。
+```
+
+**解决**：
+- 至少运行一次 `--evaluate` 才能生成历史记录
+- 检查 `evaluations_history.json` 文件是否存在
 
 ---
 
-## 📚 进阶：自定义结构
+## 💡 最佳实践
 
-### 1. 编辑 structures_library.md
+### 1. 版本迭代策略
 
-在 `prompts/structures_library.md` 中添加新结构：
-
-```markdown
-## 结构九：我的自定义结构
-
-**适用场景**：XXX
-
-**结构模板**：
-开头：...
-中间：...
-结尾：...
+```
+v1 (初始版本)
+  ↓
+v2-v3 (快速迭代，每天1-2版)
+  ↓
+v4-v10 (精细优化，每天1版)
+  ↓
+v11+ (成熟版本，按需迭代)
 ```
 
-### 2. 使用自定义结构
+### 2. 评估频率建议
+
+- **开发阶段**：每天评估 1-2 次
+- **稳定阶段**：每周评估 1 次
+- **A/B测试**：同时评估多个版本
+
+### 3. 优化建议处理
+
+评估完成后会输出优化建议，例如：
+
+```
+优化建议（基于多模型输出的共性表现）：
+- 开头要求可以更具体，比如限制首段在 2-3 句内直接点明主题
+- 可以在提示词中补充：至少自然引用 1-2 句古诗词或经典名句
+- 建议添加小标题结构，使用「一、」「二、」「三、」等形式
+```
+
+**处理方式**：
+1. 查看自动生成的下一版提示词
+2. 手动调整优化建议
+3. 运行下一轮评估验证效果
+
+---
+
+## 📚 高级用法
+
+### 非线性迭代
 
 ```bash
-python evaluate_prompts.py --generate "选题" --structure 我的自定义结构
+# 跳过某些版本，基于历史版本重新开始
+uv run evaluate_prompts.py --evaluate --from-version 3
+
+# 这将创建新的 v4，覆盖现有的 v4（如有）
+```
+
+### 版本分支
+
+```bash
+# 基于 v3 创建 v7（保留 v4-v6）
+uv run evaluate_prompts.py --create-version 3 --to 7
+
+# 手动编辑 v7.md
+vim prompts/v7.md
+
+# 评估 v7
+uv run evaluate_prompts.py --evaluate --from-version 7
 ```
 
 ---
 
-## 🎉 总结
+## 🎓 总结
 
-新系统的核心优势：
+本工具的核心价值：
 
-| 优势 | 说明 |
+| 特性 | 说明 |
 |------|------|
-| **模块化** | 人设、结构、标题分离，便于维护 |
-| **灵活性** | 支持指定结构、自定义结构、仿写爆文 |
-| **可扩展** | 新增结构只需修改 structures_library.md |
-| **可测试** | 同一选题可测试不同结构效果 |
-| **向后兼容** | 保留旧版评估模式 |
+| **多模型并行** | 一次评估测试多个模型 |
+| **规则引擎** | 无需人工评分，自动8维度评估 |
+| **版本管理** | 追踪所有历史版本和性能变化 |
+| **自动优化** | 基于评估结果生成下一版提示词 |
+| **灵活迭代** | 支持线性迭代和非线性分支 |
 
 ---
 
-如有问题，请查看帮助：
+如有疑问，查看帮助：
 
 ```bash
-python evaluate_prompts.py --help
+uv run evaluate_prompts.py --help
 ```
