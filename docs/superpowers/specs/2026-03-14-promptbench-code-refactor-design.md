@@ -68,17 +68,24 @@ promptbench/
 │       ├── evaluate.py
 │       ├── ranking.py
 │       ├── create_version.py
+├── optimizers/             # 优化器模块
+│   ├── __init__.py
+│   ├── base.py              # 优化器基类
+│   ├── llm_optimizer.py     # LLM提示词优化
+│   └── summarizer.py        # 评估总结生成
 ├── utils/                   # 工具模块
 │   ├── __init__.py
-│   ├── text.py              # 文本处理工具
-│   └── file.py              # 文件操作工具
+│   ├── text.py              # 文本处理工具（字数统计、段落分析、引用检测等）
+│   ├── file.py              # 文件操作工具（读取/写入文件、目录操作等）
+│   └── log.py               # 日志管理（统一日志配置和管理）
 └── tests/                   # 单元测试
     ├── __init__.py
     ├── test_core.py
     ├── test_evaluators.py
     ├── test_detectors.py
     ├── test_models.py
-    └── test_versions.py
+    ├── test_versions.py
+    └── test_optimizers.py
 ```
 
 ---
@@ -180,8 +187,13 @@ class PromptVersion:
 | `evaluators/rule_evaluator.py` | 规则评估引擎 | `RuleEvaluator.evaluate()` |
 | `evaluators/ai_evaluator.py` | AI语义评估引擎 | `AIEvaluator.evaluate()` |
 | `detectors/multi_detector.py` | 多AI检测管理 | `MultiAIDetector.detect()` |
+| `optimizers/llm_optimizer.py` | LLM提示词优化 | `LLMOptimizer.optimize()` |
+| `optimizers/summarizer.py` | 评估总结生成 | `Summarizer.summarize()` |
 | `models/client.py` | 统一的模型调用接口 | `LLMClient.generate()` |
 | `versions/prompt_manager.py` | 提示词版本管理 | `PromptManager.get_latest()` |
+| `utils/text.py` | 文本处理工具 | `count_chars()`, `analyze_paragraphs()`, `detect_quotes()` 等 |
+| `utils/file.py` | 文件操作工具 | `read_file()`, `write_file()`, `create_dir()` 等 |
+| `utils/log.py` | 日志管理 | `get_logger()`, 统一的日志配置 |
 | `cli/main.py` | 命令行入口 | `main()` |
 
 ---
@@ -226,9 +238,85 @@ class HistoryManager:
     def add_evaluation(version: int, result: EvaluationResult)
     def get_summary(version: int) -> VersionSummary
     def get_ranking() -> List[VersionSummary]
+
+# optimizers/llm_optimizer.py - LLM提示词优化
+class LLMOptimizer:
+    def optimize(original_prompt: str, eval_summary: str, new_version: int) -> str
+    def validate_prompt(prompt: str) -> List[str]
+
+# optimizers/summarizer.py - 评估总结
+class Summarizer:
+    def summarize(results: List[EvaluationResult]) -> str
+    def get_common_issues(results: List[EvaluationResult]) -> List[str]
 ```
 
-### 5.2 配置管理设计
+### 5.2 日志系统设计（新增）
+
+```python
+# utils/log.py
+import logging
+import sys
+from pathlib import Path
+from typing import Optional
+
+class LogManager:
+    """统一日志管理器"""
+
+    @staticmethod
+    def get_logger(name: str = "promptbench", level: int = logging.INFO) -> logging.Logger:
+        """获取配置好的 logger 对象"""
+        logger = logging.getLogger(name)
+
+        if logger.hasHandlers():
+            return logger
+
+        logger.setLevel(level)
+
+        # 控制台输出
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setLevel(level)
+
+        # 文件输出
+        log_dir = Path(__file__).parent.parent.parent / "logs"
+        log_dir.mkdir(exist_ok=True)
+        file_handler = logging.FileHandler(log_dir / "promptbench.log")
+        file_handler.setLevel(logging.WARNING)
+
+        # 格式配置
+        formatter = logging.Formatter(
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        )
+        console_handler.setFormatter(formatter)
+        file_handler.setFormatter(formatter)
+
+        logger.addHandler(console_handler)
+        logger.addHandler(file_handler)
+
+        return logger
+
+# 便捷的 log 工具函数
+logger = LogManager.get_logger()
+
+def debug(msg: str, *args, **kwargs):
+    logger.debug(msg, *args, **kwargs)
+
+def info(msg: str, *args, **kwargs):
+    logger.info(msg, *args, **kwargs)
+
+def warning(msg: str, *args, **kwargs):
+    logger.warning(msg, *args, **kwargs)
+
+def error(msg: str, *args, **kwargs):
+    logger.error(msg, *args, **kwargs)
+
+def critical(msg: str, *args, **kwargs):
+    logger.critical(msg, *args, **kwargs)
+
+def exception(msg: str, *args, **kwargs):
+    logger.exception(msg, *args, **kwargs)
+```
+
+### 5.3 配置管理设计
 
 ```python
 # core/config.py
@@ -424,7 +512,196 @@ python evaluate_prompts.py --create-version 4
 
 ---
 
-## 10. 注意事项
+## 10. 数据迁移策略
+
+### 10.1 evaluations_history.json 迁移
+
+```python
+# 迁移脚本示例（migrations/v1_to_v2.py）
+def migrate_history_file(old_path: Path, new_path: Path):
+    """
+    迁移旧版本的 evaluations_history.json 到新版本格式
+    """
+    with old_path.open("r", encoding="utf-8") as f:
+        old_data = json.load(f)
+
+    new_data = []
+    for entry in old_data:
+        # 确保所有字段都存在
+        if "version" in entry and "avg_score" in entry:
+            # 补充缺失的字段
+            entry.setdefault("max_score", 0.0)
+            entry.setdefault("min_score", 0.0)
+            entry.setdefault("model_count", 0)
+            entry.setdefault("evaluation_time", str(datetime.now()))
+            new_data.append(entry)
+
+    with new_path.open("w", encoding="utf-8") as f:
+        json.dump(new_data, f, indent=2, ensure_ascii=False, default=str)
+
+def check_and_migrate():
+    """检查并执行必要的数据迁移"""
+    history_file = ConfigManager().config.history_file
+
+    if history_file.exists():
+        temp_path = history_file.with_suffix(".json.backup")
+        history_file.rename(temp_path)
+
+        try:
+            migrate_history_file(temp_path, history_file)
+            print("✅ 历史数据迁移成功")
+        except Exception as e:
+            temp_path.rename(history_file)
+            print(f"❌ 数据迁移失败: {e}")
+            raise
+```
+
+### 10.2 向后兼容性保障
+
+```python
+# 在启动时检查并执行迁移
+check_and_migrate()
+```
+
+---
+
+## 11. 性能优化考虑
+
+### 11.1 并发执行
+
+```python
+# 使用 concurrent.futures 进行并发模型调用
+import concurrent.futures
+from typing import List, Dict, Any
+
+def run_concurrent_evaluations(
+    prompt: str,
+    models: List[ModelConfig],
+    topic: str = None
+) -> List[Dict[str, Any]]:
+    """
+    并发执行模型评估，提高效率
+    """
+    results = []
+
+    def evaluate_single_model(model_config: ModelConfig):
+        """评估单个模型"""
+        try:
+            result = LLMClient.generate(
+                prompt=prompt,
+                model=model_config.name,
+                topic=topic
+            )
+            return {
+                "success": True,
+                "model": model_config.name,
+                "provider": model_config.provider,
+                "result": result
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "model": model_config.name,
+                "provider": model_config.provider,
+                "error": str(e)
+            }
+
+    # 使用线程池或进程池
+    with concurrent.futures.ThreadPoolExecutor(
+        max_workers=min(len(models), 5)  # 限制并发数
+    ) as executor:
+        futures = [
+            executor.submit(evaluate_single_model, config)
+            for config in models if config.enabled
+        ]
+
+        for future in concurrent.futures.as_completed(futures):
+            results.append(future.result())
+
+    return results
+```
+
+### 11.2 缓存机制
+
+```python
+# 使用简单的文件缓存
+import hashlib
+
+class SimpleCache:
+    """简单的文件缓存系统"""
+
+    def __init__(self, cache_dir: Path = Path("cache")):
+        self.cache_dir = cache_dir
+        self.cache_dir.mkdir(exist_ok=True)
+
+    def get_cache_key(self, prompt: str, model: str) -> str:
+        """生成唯一的缓存密钥"""
+        key_str = f"{prompt}_{model}"
+        return hashlib.md5(key_str.encode()).hexdigest()
+
+    def get(self, prompt: str, model: str) -> Optional[str]:
+        """从缓存获取结果"""
+        cache_key = self.get_cache_key(prompt, model)
+        cache_path = self.cache_dir / f"{cache_key}.txt"
+
+        if cache_path.exists():
+            try:
+                return cache_path.read_text(encoding="utf-8")
+            except Exception:
+                return None
+
+    def set(self, prompt: str, model: str, content: str):
+        """保存结果到缓存"""
+        cache_key = self.get_cache_key(prompt, model)
+        cache_path = self.cache_dir / f"{cache_key}.txt"
+
+        try:
+            cache_path.write_text(content, encoding="utf-8")
+        except Exception as e:
+            logger.warning(f"缓存保存失败: {e}")
+
+    def clear_old_cache(self, days: int = 7):
+        """清除过期的缓存文件"""
+        now = time.time()
+
+        for cache_file in self.cache_dir.glob("*.txt"):
+            if now - cache_file.stat().st_mtime > days * 86400:
+                cache_file.unlink()
+```
+
+### 11.3 增量更新
+
+```python
+# 实现增量更新功能
+def run_incremental_evaluation(from_version: int = None):
+    """
+    增量评估：仅评估指定版本之后的版本
+    """
+    if from_version is None:
+        from_version = 1
+
+    latest_version = PromptManager.get_latest_version()
+
+    for version in range(from_version, latest_version + 1):
+        try:
+            logger.info(f"正在评估版本 v{version}")
+            prompt = PromptManager.get_prompt(version)
+
+            # 仅评估未评估的模型
+            existing_results = HistoryManager.get_existing_results(version)
+            models_to_evaluate = get_models_not_evaluated(existing_results)
+
+            if models_to_evaluate:
+                evaluate_version(prompt, version, models_to_evaluate)
+            else:
+                logger.info(f"版本 v{version} 已全部评估")
+        except Exception as e:
+            logger.error(f"版本 v{version} 评估失败: {e}")
+```
+
+---
+
+## 12. 注意事项
 
 - 完全保留现有功能，只是重构架构
 - 保持技术栈不变（OpenAI SDK）
@@ -433,6 +710,8 @@ python evaluate_prompts.py --create-version 4
 - 添加单元测试
 - 统一错误处理
 - 集中配置管理
+- 性能优化：并发执行、缓存机制、增量更新
+- 数据迁移：保留历史数据并提供迁移策略
 
 ---
 
