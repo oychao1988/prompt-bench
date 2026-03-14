@@ -32,6 +32,9 @@ dev = [
 where = ["."]
 include = ["promptbench*"]
 
+[project.scripts]
+promptbench = "promptbench.cli.main:CLI.main"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]

@@ -38,64 +38,145 @@ PromptBench 开发指南 - 提示词评估与优化工具。
 
 ```
 .
-├── evaluate_prompts.py        # 主脚本（~900行）
+├── promptbench/               # 核心包（模块化架构）
+│   ├── __init__.py
+│   ├── cli/                   # 命令行接口
+│   │   └── main.py
+│   ├── core/                  # 核心模块
+│   │   ├── config.py          # 配置管理
+│   │   ├── constants.py       # 常量定义
+│   │   ├── entities.py        # 数据类
+│   │   └── exceptions.py      # 异常体系
+│   ├── evaluators/            # 评估器
+│   │   ├── rule_evaluator.py  # 规则评估
+│   │   └── ai_evaluator.py    # AI评估
+│   ├── detectors/             # AI检测器
+│   │   ├── base.py            # 基础类
+│   │   └── multi_detector.py  # 多检测器聚合
+│   ├── optimizers/            # 优化器
+│   │   ├── summarizer.py      # 评估总结
+│   │   └── prompt_optimizer.py # 提示词优化
+│   ├── models/                # 模型客户端
+│   │   └── client.py          # 统一模型接口
+│   ├── versions/              # 版本管理
+│   │   ├── prompt_manager.py  # 提示词管理
+│   │   └── history_manager.py # 历史记录管理
+│   └── utils/                 # 工具模块
+│       ├── text.py            # 文本处理
+│       ├── file.py            # 文件操作
+│       └── log.py             # 日志工具
+├── tests/                     # 测试套件
+│   ├── test_core.py
+│   ├── test_evaluators_integration.py
+│   ├── test_rule_evaluator.py
+│   ├── test_ai_evaluator.py
+│   ├── test_detectors.py
+│   ├── test_optimizers.py
+│   ├── test_models_versions.py
+│   ├── test_cli.py
+│   └── test_utils.py
 ├── models.json                # 模型配置
-├── import_history.py          # 辅助工具
 ├── prompts/                   # 提示词版本文件（评估对象）
-│   ├── v*.md
-└── outputs/                   # 评估结果（不提交）
-    ├── v*/
-    │   ├── {provider}__{model}.txt
-    │   └── evaluations.json
-    └── v*/
+│   └── v*.md
+├── outputs/                   # 评估结果（不提交）
+│   └── v*/
+├── pyproject.toml             # 项目配置
+├── README.md                  # 项目概述
+├── USAGE.md                   # 使用说明
+└── CLAUDE.md                  # 开发指南（本文件）
 ```
 
-### 核心文件
-- `evaluate_prompts.py`：所有评估逻辑
+### 核心模块
+- `promptbench/core/config.py`：统一配置管理和环境变量加载
+- `promptbench/evaluators/rule_evaluator.py`：规则评估逻辑（字数、段落数等）
+- `promptbench/evaluators/ai_evaluator.py`：AI语义评估逻辑
+- `promptbench/detectors/multi_detector.py`：多检测器聚合和AI检测
+- `promptbench/optimizers/`：评估总结和提示词优化
+- `promptbench/models/client.py`：统一的模型调用接口
+- `promptbench/versions/`：提示词版本管理和历史记录
+- `promptbench/cli/main.py`：命令行接口（CLI）
+
+### 配置文件
 - `models.json`：配置哪些模型参与评估
+- `.env`：API密钥和配置（不提交）
 - `evaluations_history.json`：版本历史（自动生成，不提交）
-- `.env`：API 密钥（不提交）
 
 ## CLI Commands
 
 ```bash
 # 运行评估
-uv run evaluate_prompts.py --evaluate
+promptbench evaluate
 
 # 基于指定版本评估
-uv run evaluate_prompts.py --evaluate --from-version 3
-
-# 查看版本排名
-uv run evaluate_prompts.py --ranking
-
-# 创建新版本
-uv run evaluate_prompts.py --create-version 4
+promptbench evaluate --from-version 3
 
 # 仅测试不优化
-uv run evaluate_prompts.py --evaluate --skip-optimize
+promptbench evaluate --skip-optimize
+
+# 查看版本排名
+promptbench ranking
+
+# 显示版本详情
+promptbench show 3
+
+# 比较版本
+promptbench compare --versions 1 2 3
+
+# 查看帮助
+promptbench --help
+promptbench evaluate --help
+```
+
+### 开发模式运行
+
+```bash
+# 直接运行Python模块
+python -m promptbench.cli.main evaluate
+python -m promptbench.cli.main ranking
+
+# 或使用旧脚本（已废弃，保留向后兼容）
+python evaluate_prompts.py --evaluate
 ```
 
 ## Code Organization
 
-| 模块 | 关键函数 | 行号 |
-|------|----------|------|
-| 环境加载 | `load_env_from_dotenv()`, `get_client()` | ~23-74 |
-| 版本管理 | `get_latest_prompt_file()`, `load_prompt()` | ~81-114 |
-| 模型调用 | `call_llm()`, `generate_with_model()` | ~122-206 |
-| 规则评估 | `evaluate_article()`, `extract_length_requirement()` | ~245-344 |
-| AI评估 | `evaluate_article_via_ai()` | ~347-503 |
-| 评估总结 | `summarize_evaluations()`, `optimize_prompt_via_llm()` | ~509-570, ~573-654 |
-| 版本历史 | `calculate_version_summary()`, `show_version_ranking()` | ~692-731, ~753-787 |
-| 版本对比 | `compare_with_best()` | ~790-826 |
-| 评估流程 | `run_evaluation()` | ~840-944 |
+| 模块 | 主要类/函数 | 职责 |
+|------|-------------|------|
+| **核心模块** | | |
+| `core/config.py` | `ConfigManager` | 环境变量加载、配置管理 |
+| `core/constants.py` | - | 默认权重、评分规则、常量 |
+| `core/entities.py` | `EvaluationResult`, `ModelConfig` | 数据类定义 |
+| `core/exceptions.py` | `PromptBenchError` 及子类 | 异常体系 |
+| **评估模块** | | |
+| `evaluators/rule_evaluator.py` | `RuleEvaluator` | 规则评估（字数、段落数等） |
+| `evaluators/ai_evaluator.py` | `AIEvaluator` | AI语义评估 |
+| **检测模块** | | |
+| `detectors/base.py` | `AIDetector` | AI检测器基类 |
+| `detectors/multi_detector.py` | `MultiAIDetector` | 多检测器聚合 |
+| **优化模块** | | |
+| `optimizers/summarizer.py` | `EvaluationSummarizer` | 评估结果总结 |
+| `optimizers/prompt_optimizer.py` | `PromptOptimizer` | 提示词优化 |
+| **模型模块** | | |
+| `models/client.py` | `ModelClient` | 统一模型调用接口 |
+| **版本管理** | | |
+| `versions/prompt_manager.py` | `PromptManager` | 提示词版本管理 |
+| `versions/history_manager.py` | `HistoryManager` | 评估历史管理 |
+| **CLI模块** | | |
+| `cli/main.py` | `CLI` | 命令行接口 |
+| **工具模块** | | |
+| `utils/text.py` | - | 文本处理工具 |
+| `utils/file.py` | - | 文件操作工具 |
+| `utils/log.py` | - | 日志工具 |
 
 ## Preferences
 
 ### ✅ 必须遵守
-- 使用 `uv run` 执行脚本
-- 修改函数后更新 CLAUDE.md 中的行号参考
-- 评估规则修改必须在 `evaluate_article()` 函数中进行
+- 使用模块化架构，所有新功能应在相应模块中实现
+- 遵循类型注解规范（`function(arg: type) -> ReturnType`）
+- 遵循 Google 风格的 Docstring
+- 修改代码后运行测试确保通过
 - 新增 provider 必须在 `models.json` 和 `.env` 中同时配置
+- 使用 `promptbench` CLI 命令或 `python -m promptbench.cli.main`
 
 ### ❌ 禁止行为
 - **禁止添加文章生成功能**：本项目是评估工具，不是生成工具
@@ -106,17 +187,40 @@ uv run evaluate_prompts.py --evaluate --skip-optimize
 
 ### ⚠️ 注意事项
 - 评估结果自动保存到 `outputs/v{N}/`
-- 优化器默认使用 `gpt-5.4`，可通过 `PROMPT_OPTIMIZER_MODEL` 修改
-- AI评估默认使用 `gpt-5.4`，可通过 `EVALUATION_MODEL` 修改
-- 规则评估权重在 `evaluate_article()` 的 `weights` 字典中定义
-- AI评估维度在 `evaluate_article_via_ai()` 的提示词中定义
+- 默认使用 `ConfigManager` 加载环境变量
+- 规则评估权重在 `core/constants.py` 的 `DEFAULT_RULE_WEIGHTS` 中定义
+- AI评估维度在 `evaluators/ai_evaluator.py` 的提示词中定义
+- 旧脚本 `evaluate_prompts.py` 已废弃，仅保留向后兼容
+- 所有配置通过环境变量或 `models.json` 管理，禁止硬编码
 
 ## Development Workflow
 
-1. **修改规则评估**：编辑 `evaluate_article()`（~245-344行）
-2. **修改AI评估**：编辑 `evaluate_article_via_ai()`（~347-503行）
-3. **修改优化逻辑**：编辑 `summarize_evaluations()`（~509-570行）
-4. **更新文档**：修改后必须更新 CLAUDE.md 、USAGE.md 、README.md
+### 修改规则评估
+编辑 `promptbench/evaluators/rule_evaluator.py` 中的 `RuleEvaluator` 类
+
+### 修改AI评估
+编辑 `promptbench/evaluators/ai_evaluator.py` 中的 `AIEvaluator` 类
+
+### 修改优化逻辑
+编辑 `promptbench/optimizers/` 目录下的相应模块
+
+### 运行测试
+```bash
+# 运行所有测试
+pytest tests/ -v
+
+# 运行特定测试
+pytest tests/test_rule_evaluator.py -v
+
+# 查看测试覆盖率
+pytest tests/ --cov=promptbench --cov-report=html
+```
+
+### 更新文档
+修改代码后必须更新：
+1. `CLAUDE.md` - 开发指南
+2. `USAGE.md` - 使用说明
+3. `README.md` - 项目概述
 
 ## 评分体系
 
