@@ -9,24 +9,18 @@ PromptBench - 提示词评估与优化工具
 __version__ = "2.0.0"
 __author__ = "PromptBench Team"
 
-from promptbench.core import ConfigManager
-from promptbench.core.entities import (
-    ModelConfig,
-    RuleEvaluation,
-    AIEvaluation,
-    DetectionResult,
-    EvaluationResult,
-    VersionSummary,
-    PromptVersion
+from promptbench.core.exceptions import (
+    PromptBenchError,
+    ConfigError,
+    ModelError,
+    EvaluationError,
+    VersionError
 )
 
 __all__ = [
-    "ConfigManager",
-    "ModelConfig",
-    "RuleEvaluation",
-    "AIEvaluation",
-    "DetectionResult",
-    "EvaluationResult",
-    "VersionSummary",
-    "PromptVersion",
+    "PromptBenchError",
+    "ConfigError",
+    "ModelError",
+    "EvaluationError",
+    "VersionError",
 ]
