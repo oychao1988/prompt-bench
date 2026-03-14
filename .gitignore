@@ -32,3 +32,4 @@ evaluations_history.json
 
 # 提示词版本文件（测试对象）
 prompts/v*.md
+.worktrees/
