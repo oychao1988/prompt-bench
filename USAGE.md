@@ -26,21 +26,14 @@ cp .env.example .env
 # vim .env
 ```
 
-### 2. 安装依赖
+### 2. 安装项目
 
 ```bash
-# 使用 pip
-pip install openai python-dotenv
+# 安装 PromptBench
+pip install -e .
 
-# 或使用 uv（推荐）
-uv pip install openai python-dotenv
-```
-
-### 3. 运行第一次评估
-
-```bash
-# 使用最新版提示词运行评估
-uv run evaluate_prompts.py --evaluate
+# 或使用开发模式安装
+pip install -e .
 ```
 
 ---
@@ -51,30 +44,30 @@ uv run evaluate_prompts.py --evaluate
 
 ```bash
 # 使用最新版提示词运行评估
-uv run evaluate_prompts.py --evaluate
+promptbench evaluate
 
 # 基于指定版本运行评估（如 v3）
-uv run evaluate_prompts.py --evaluate --from-version 3
+promptbench evaluate --from-version 3
 
 # 运行评估但不生成新版本（仅测试）
-uv run evaluate_prompts.py --evaluate --skip-optimize
+promptbench evaluate --skip-optimize
 ```
 
 ### 查看排名
 
 ```bash
 # 显示所有历史版本的排名
-uv run evaluate_prompts.py --ranking
+promptbench ranking
 ```
 
 ### 版本管理
 
 ```bash
-# 基于现有版本创建新版本（复制内容）
-uv run evaluate_prompts.py --create-version 4
+# 显示特定版本详情
+promptbench show 4
 
-# 基于现有版本创建指定版本号
-uv run evaluate_prompts.py --create-version 4 --to 7
+# 比较多个版本
+promptbench compare --versions 1 2 3
 ```
 
 ---
@@ -273,7 +266,7 @@ cp prompts/v4.md prompts/v5.md
 # 编辑 v5.md，优化提示词内容
 
 # 2. 运行评估
-uv run evaluate_prompts.py --evaluate --from-version 5
+promptbench evaluate --from-version 5
 
 # 3. 查看结果
 cat outputs/v5/evaluations.json
@@ -283,7 +276,7 @@ cat outputs/v5/evaluations.json
 
 ```bash
 # 1. 查看版本排名
-uv run evaluate_prompts.py --ranking
+promptbench ranking
 
 # 输出示例：
 # 版本     平均分   最高分   模型数   时间
@@ -296,7 +289,7 @@ uv run evaluate_prompts.py --ranking
 
 ```bash
 # 基于 v3 重新开始评估（跳过 v4）
-uv run evaluate_prompts.py --evaluate --from-version 3
+promptbench evaluate --from-version 3
 
 # 这将：
 # 1. 使用 v3 提示词运行评估
@@ -307,7 +300,7 @@ uv run evaluate_prompts.py --evaluate --from-version 3
 
 ```bash
 # 测试提示词效果，但不生成下一版
-uv run evaluate_prompts.py --evaluate --skip-optimize
+promptbench evaluate --skip-optimize
 ```
 
 ---
@@ -364,16 +357,18 @@ xiaoai_api_key=your-xiaoai-key
 
 **方式1：自动生成**
 ```bash
-uv run evaluate_prompts.py --evaluate
+promptbench evaluate
 # 评估完成后自动生成 v{N+1}.md
 ```
 
 **方式2：手动创建**
 ```bash
-uv run evaluate_prompts.py --create-version 4
+# 手动创建新版本（复制文件）
+cp prompts/v4.md prompts/v5.md
 # 基于 v4 创建 v5（自动递增）
 
-uv run evaluate_prompts.py --create-version 4 --to 7
+# 手动创建新版本（复制文件）
+cp prompts/v4.md prompts/v5.md --to 7
 # 基于 v4 创建 v7（指定版本号）
 ```
 
@@ -473,7 +468,7 @@ v11+ (成熟版本，按需迭代)
 
 ```bash
 # 跳过某些版本，基于历史版本重新开始
-uv run evaluate_prompts.py --evaluate --from-version 3
+promptbench evaluate --from-version 3
 
 # 这将创建新的 v4，覆盖现有的 v4（如有）
 ```
@@ -482,13 +477,14 @@ uv run evaluate_prompts.py --evaluate --from-version 3
 
 ```bash
 # 基于 v3 创建 v7（保留 v4-v6）
-uv run evaluate_prompts.py --create-version 3 --to 7
+# 基于现有版本创建指定版本号（手动复制）
+cp prompts/v3.md prompts/v7.md
 
 # 手动编辑 v7.md
 vim prompts/v7.md
 
 # 评估 v7
-uv run evaluate_prompts.py --evaluate --from-version 7
+promptbench evaluate --from-version 7
 ```
 
 ---
@@ -510,5 +506,6 @@ uv run evaluate_prompts.py --evaluate --from-version 7
 如有疑问，查看帮助：
 
 ```bash
-uv run evaluate_prompts.py --help
+promptbench --help
+promptbench evaluate --help
 ```

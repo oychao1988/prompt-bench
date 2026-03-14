@@ -16,29 +16,30 @@
 ## 快速开始
 
 ```bash
-# 1. 安装依赖
-pip install openai python-dotenv requests
+# 1. 安装项目
+pip install -e .
 
 # 2. 配置环境
 cp .env.example .env
 # 编辑 .env 添加 API 配置
 
 # 3. 运行评估（无API密钥也可运行，使用模拟检测）
-uv run evaluate_prompts.py --evaluate
+promptbench evaluate
 
 # 4. 查看排名
-uv run evaluate_prompts.py --ranking
+promptbench ranking
 ```
 
 ## 核心命令
 
 | 命令 | 说明 |
 |------|------|
-| `--evaluate` | 运行多模型评估 |
-| `--evaluate --from-version N` | 基于指定版本评估 |
-| `--ranking` | 显示历史版本排名 |
-| `--create-version N` | 基于版本 N 创建新版本 |
-| `--skip-optimize` | 跳过自动生成下一版 |
+| `promptbench evaluate` | 运行多模型评估 |
+| `promptbench evaluate --from-version N` | 基于指定版本评估 |
+| `promptbench ranking` | 显示历史版本排名 |
+| `promptbench evaluate --skip-optimize` | 跳过自动生成下一版 |
+| `promptbench show N` | 显示版本详情 |
+| `promptbench compare --versions 1 2` | 比较多个版本 |
 
 ## 文档
 
@@ -125,22 +126,24 @@ GPTZERO_API_KEY=your_api_key
 
 ```
 .
-├── evaluate_prompts.py    # 主脚本
-├── models.json            # 模型配置
-├── .env.example           # 环境变量模板
-├── prompts/               # 提示词版本文件
+├── promptbench/          # 核心模块（评估器、检测器、优化器等）
+├── tests/               # 测试套件
+├── models.json          # 模型配置
+├── .env.example         # 环境变量模板
+├── prompts/             # 提示词版本文件
 │   └── v*.md
-├── outputs/               # 评估结果（不提交）
+├── outputs/             # 评估结果（不提交）
 │   └── v*/
-├── USAGE.md               # 使用说明
-└── CLAUDE.md              # 开发指南
+├── pyproject.toml       # 项目配置
+├── USAGE.md             # 使用说明
+└── CLAUDE.md            # 开发指南
 ```
 
 ## 使用示例
 
 ```bash
 # 运行评估（包含中文AI检测）
-uv run evaluate_prompts.py --evaluate
+promptbench evaluate
 
 # 输出示例：
 == 调用 anthropic / claude-sonnet-4-6 ==
