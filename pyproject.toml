@@ -5,18 +5,23 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "promptbench"
 version = "2.0.0"
-description = "提示词评估与优化工具"
+description = "提示词评估与优化工具 - 通过多模型并行测试和规则引擎自动评分，找到最佳提示词版本"
 readme = "README.md"
 requires-python = ">=3.12"
 license = {text = "MIT"}
 authors = [
-    {name = "PromptBench Team"}
+    {name = "PromptBench Team", email = "info@promptbench.dev"}
 ]
+keywords = ["prompt", "evaluation", "LLM", "testing", "optimization"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
+    "Topic :: Software Development :: Testing",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
 ]
 dependencies = [
     "openai>=1.0.0",
