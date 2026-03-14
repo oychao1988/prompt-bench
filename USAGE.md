@@ -141,9 +141,10 @@ outputs/
     "provider": "google",
     "model": "gemini-3.1-pro-preview",
     "evaluation": {
-      "rule_score": 5,
-      "ai_score": 3.5,
-      "total_score": 8.5,
+      "rule_score": 2.5,
+      "ai_score": 2.1,
+      "detection_score": 1.5,
+      "total_score": 6.1,
       "in_length_range": false,
       "para_count_reasonable": true,
       "avg_para_length_ok": false,
@@ -158,8 +159,14 @@ outputs/
         "classic_naturalness": {"score": 0.5, "reason": "..."},
         "content_depth": {"score": 0.75, "reason": "..."},
         "writing_fluency": {"score": 0.5, "reason": "..."},
-        "emotional_resonance": {"score": 0.5, "reason": "..."},
-        "human_like": {"score": 0.25, "reason": "..."}
+        "emotional_resonance": {"score": 0.5, "reason": "..."}
+      },
+      "detection_result": {
+        "ai_score": 0.65,
+        "ai_percentage": 65,
+        "human_percentage": 35,
+        "detector": "zhuque",
+        "confidence": "medium"
       }
     },
     "output_path": "outputs/v5/google__gemini-3.1-pro-preview.txt"
@@ -169,27 +176,90 @@ outputs/
 
 ### 评分维度说明
 
-#### 总分：10分（规则5分 + AI评估5分）
+#### 总分：10分（质量6分 + AI检测4分）
 
-#### 规则评估（5分） - 客观指标
+##### 质量评估（6分）
+
+**规则评估（3分）** - 客观指标
 
 | 维度 | 权重 | 检测规则 |
 |------|------|----------|
-| `in_length_range` | 1.5分 | 字数是否在提示词要求范围内 |
-| `para_count_reasonable` | 1分 | 段落数是否合理（5-20段） |
-| `avg_para_length_ok` | 0.5分 | 平均段落长度是否合理（30-150字） |
-| `has_3_points` | 1分 | 中间是否有≥3个观点段落 |
-| `has_headings` | 1分 | 是否有小标题结构 |
+| `in_length_range` | 1.0分 | 字数是否在提示词要求范围内 |
+| `para_count_reasonable` | 0.7分 | 段落数是否合理（5-20段） |
+| `avg_para_length_ok` | 0.3分 | 平均段落长度是否合理（30-150字） |
+| `has_3_points` | 0.6分 | 中间是否有≥3个观点段落 |
+| `has_headings` | 0.4分 | 是否有小标题结构 |
 
-#### AI评估（5分） - 语义指标
+**AI语义评估（3分）** - 语义指标
 
 | 维度 | 权重 | 评估标准 |
 |------|------|----------|
-| `intro_quality` | 1分 | 开头是否直接入题，有吸引力，符合人设 |
-| `classic_naturalness` | 1分 | 经典引用是否自然恰当，与观点紧密相关 |
-| `content_depth` | 1分 | 内容是否有深度，观点是否有启发性 |
-| `writing_fluency` | 1分 | 文笔是否流畅自然，语言是否有节奏感，有人味儿 |
-| `emotional_resonance` | 1分 | 是否能引发情感共鸣，打动人心 |
+| `intro_quality` | 0.6分 | 开头是否直接入题，有吸引力，符合人设 |
+| `classic_naturalness` | 0.6分 | 经典引用是否自然恰当，与观点紧密相关 |
+| `content_depth` | 0.6分 | 内容是否有深度，观点是否有启发性 |
+| `writing_fluency` | 0.6分 | 文笔是否流畅自然，语言是否有节奏感 |
+| `emotional_resonance` | 0.6分 | 是否能引发情感共鸣，打动人心 |
+
+##### AI检测（4分）
+
+**评分公式**：`检测分 = (1 - AI率) × 4`，保留2位小数
+
+**评分对照表**：
+| AI率 | 人类率 | 检测分 | 评级 |
+|------|--------|--------|------|
+| 0% | 100% | 4.00 | ⭐⭐⭐⭐⭐ 完美 |
+| 10% | 90% | 3.60 | ⭐⭐⭐⭐⭐ 优秀 |
+| 20% | 80% | 3.20 | ⭐⭐⭐⭐ 良好 |
+| 30% | 70% | 2.80 | ⭐⭐⭐ 良好 |
+| 40% | 60% | 2.40 | ⭐⭐⭐ 一般 |
+| 50% | 50% | 2.00 | ⭐⭐ 一般 |
+| 60% | 40% | 1.60 | ⭐⭐ 较差 |
+| 70% | 30% | 1.20 | ⭐ 较差 |
+| 80% | 20% | 0.80 | ⭐ 很差 |
+| 90% | 10% | 0.40 | ⭐ 很差 |
+| 100% | 0% | 0.00 | ⭐ 纯AI |
+
+**多检测器支持**：
+
+支持同时使用多个AI检测平台，系统自动计算加权平均值：
+
+| 检测器 | 推荐度 | 说明 |
+|--------|--------|------|
+| 朱雀检测 | ⭐⭐⭐⭐⭐ | 腾讯出品，中文首选 |
+| GPTZero | ⭐⭐⭐⭐ | 准确率最高（~99%），API稳定 |
+| Copyleaks | ⭐⭐⭐ | 支持多种模型，检测全面 |
+| Originality.ai | ⭐⭐⭐ | 专门检测AI内容 |
+| Writer.com | ⭐⭐⭐ | 免费额度较大 |
+
+**配置方式**：
+
+在 `.env` 文件中配置：
+
+```bash
+# 启用朱雀检测（中文首选）
+ZHUQUE_DETECTOR_ENABLED=true
+ZHUQUE_API_KEY=your_api_key
+ZHUQUE_ENDPOINT=https://matrix.tencent.com/ai-detect/ai_gen_txt
+ZHUQUE_WEIGHT=1.0
+
+# 启用GPTZero
+GPTZERO_DETECTOR_ENABLED=true
+GPTZERO_API_KEY=your_gptzero_api_key
+GPTZERO_ENDPOINT=https://api.gptzero.me/v2/predict/text
+GPTZERO_WEIGHT=1.0
+
+# 启用Copyleaks
+COPYLEAKS_DETECTOR_ENABLED=true
+COPYLEAKS_API_KEY=your_copyleaks_api_key
+COPYLEAKS_ENDPOINT=https://api.copyleaks.com
+COPYLEAKS_WEIGHT=1.0
+```
+
+**注意事项**：
+- 未配置任何检测器时，系统会使用启发式模拟检测
+- 权重用于调整不同检测器的重要性，默认都是1.0
+- 建议至少启用一个检测器以获得准确结果
+- 中文内容优先推荐朱雀检测
 
 ---
 

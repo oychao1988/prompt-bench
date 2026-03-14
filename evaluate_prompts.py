@@ -5,6 +5,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Any, Tuple, Optional
 import textwrap
+import time
+import requests
 
 from openai import OpenAI
 
@@ -206,6 +208,442 @@ def generate_with_model(
     return call_llm(client, model_name, prompt, topic=topic, keywords=keywords)
 
 
+# ====== 2.5. AI检测模块 ======
+
+
+class AIDetector:
+    """AI检测器基类，支持多种检测工具"""
+
+    def __init__(self, detector_type: str = "zhuque", config: Optional[Dict[str, Any]] = None):
+        """
+        初始化AI检测器
+
+        Args:
+            detector_type: 检测器类型，支持 "zhuque"(朱雀)、"gptzero"、"copyleaks"、"originality"、"writer"
+            config: 检测器配置 {"api_key": "", "endpoint": "", "enabled": True, "weight": 1.0}
+        """
+        self.detector_type = detector_type
+        self.config = config or {}
+        self.api_key = self.config.get("api_key", "")
+        self.api_endpoint = self.config.get("endpoint", "")
+        self.enabled = self.config.get("enabled", True)
+        self.weight = self.config.get("weight", 1.0)
+
+    def detect(self, text: str) -> Dict[str, Any]:
+        """
+        检测文本的AI生成概率
+
+        Args:
+            text: 待检测的文本
+
+        Returns:
+            包含检测结果的字典：
+            {
+                "ai_score": 0.85,  # AI生成概率 (0-1)
+                "ai_percentage": 85,  # AI百分比 (0-100)
+                "human_percentage": 15,  # 人类百分比 (0-100)
+                "detector": "zhuque",  # 使用的检测器
+                "confidence": "high",  # 置信度
+                "enabled": true,  # 是否启用
+                "weight": 1.0  # 权重
+            }
+        """
+        if not self.enabled:
+            return self._get_disabled_result()
+
+        if self.detector_type == "zhuque":
+            return self._detect_zhuque(text)
+        elif self.detector_type == "gptzero":
+            return self._detect_gptzero(text)
+        elif self.detector_type == "copyleaks":
+            return self._detect_copyleaks(text)
+        elif self.detector_type == "originality":
+            return self._detect_originality(text)
+        elif self.detector_type == "writer":
+            return self._detect_writer(text)
+        else:
+            # 默认返回模拟结果（用于测试）
+            return self._detect_mock(text)
+
+    def _get_disabled_result(self) -> Dict[str, Any]:
+        """返回未启用的结果"""
+        return {
+            "ai_score": 0.0,
+            "ai_percentage": 0,
+            "human_percentage": 100,
+            "detector": self.detector_type,
+            "confidence": "disabled",
+            "enabled": False,
+            "weight": self.weight
+        }
+
+    def _detect_zhuque(self, text: str) -> Dict[str, Any]:
+        """
+        使用朱雀AI检测（腾讯）
+
+        API文档：https://matrix.tencent.com/ai-detect/ai_gen_txt
+        """
+        try:
+            if not self.api_endpoint or not self.api_key:
+                print(f"⚠️  朱雀检测API未配置，使用模拟结果")
+                return self._detect_mock(text)
+
+            # TODO: 实现朱雀检测API调用
+            # response = requests.post(
+            #     self.api_endpoint,
+            #     headers={"Authorization": f"Bearer {self.api_key}"},
+            #     json={"text": text},
+            #     timeout=30
+            # )
+            # result = response.json()
+            # return {
+            #     "ai_score": result.get("ai_probability", 0.5),
+            #     "ai_percentage": round(result.get("ai_probability", 0.5) * 100),
+            #     "human_percentage": round((1 - result.get("ai_probability", 0.5)) * 100),
+            #     "detector": "zhuque",
+            #     "confidence": result.get("confidence", "medium"),
+            #     "enabled": self.enabled,
+            #     "weight": self.weight
+            # }
+
+            return self._detect_mock(text)
+
+        except Exception as e:
+            print(f"❌ 朱雀检测失败: {e}")
+            return self._detect_mock(text)
+
+    def _detect_gptzero(self, text: str) -> Dict[str, Any]:
+        """
+        使用GPTZero检测
+
+        API文档：https://api.gptzero.me/v2/predict/text
+        """
+        try:
+            if not self.api_key:
+                print(f"⚠️  GPTZero API key未配置，使用模拟结果")
+                return self._detect_mock(text)
+
+            # GPTZero API实现
+            endpoint = self.api_endpoint or "https://api.gptzero.me/v2/predict/text"
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json"
+            }
+
+            response = requests.post(
+                endpoint,
+                headers=headers,
+                json={"document": text},
+                timeout=30
+            )
+
+            if response.status_code == 200:
+                result = response.json()
+                # GPTZero返回格式
+                ai_probability = result.get("average_generated_prob", 0.5)
+                return {
+                    "ai_score": round(ai_probability, 2),
+                    "ai_percentage": round(ai_probability * 100),
+                    "human_percentage": round((1 - ai_probability) * 100),
+                    "detector": "gptzero",
+                    "confidence": "high" if ai_probability > 0.7 or ai_probability < 0.3 else "medium",
+                    "enabled": self.enabled,
+                    "weight": self.weight
+                }
+            else:
+                print(f"❌ GPTZero API返回错误: {response.status_code}")
+                return self._detect_mock(text)
+
+        except Exception as e:
+            print(f"❌ GPTZero检测失败: {e}")
+            return self._detect_mock(text)
+
+    def _detect_copyleaks(self, text: str) -> Dict[str, Any]:
+        """
+        使用Copyleaks检测
+
+        API文档：https://api.copyleaks.com
+        """
+        try:
+            if not self.api_key:
+                print(f"⚠️  Copyleaks API key未配置，使用模拟结果")
+                return self._detect_mock(text)
+
+            # Copyleaks API实现
+            endpoint = self.api_endpoint or "https://api.copyleaks.com/text/v4/ai-detection"
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json"
+            }
+
+            response = requests.post(
+                endpoint,
+                headers=headers,
+                json={"text": text},
+                timeout=30
+            )
+
+            if response.status_code == 200:
+                result = response.json()
+                # Copyleaks返回格式
+                ai_score = result.get("averageAiScore", 0.5)
+                return {
+                    "ai_score": round(ai_score, 2),
+                    "ai_percentage": round(ai_score * 100),
+                    "human_percentage": round((1 - ai_score) * 100),
+                    "detector": "copyleaks",
+                    "confidence": "high",
+                    "enabled": self.enabled,
+                    "weight": self.weight
+                }
+            else:
+                print(f"❌ Copyleaks API返回错误: {response.status_code}")
+                return self._detect_mock(text)
+
+        except Exception as e:
+            print(f"❌ Copyleaks检测失败: {e}")
+            return self._detect_mock(text)
+
+    def _detect_originality(self, text: str) -> Dict[str, Any]:
+        """使用Originality.ai检测"""
+        try:
+            if not self.api_key:
+                print(f"⚠️  Originality.ai API key未配置，使用模拟结果")
+                return self._detect_mock(text)
+
+            # Originality.ai API实现
+            # TODO: 根据官方文档实现
+            return self._detect_mock(text)
+
+        except Exception as e:
+            print(f"❌ Originality.ai检测失败: {e}")
+            return self._detect_mock(text)
+
+    def _detect_writer(self, text: str) -> Dict[str, Any]:
+        """使用Writer.com检测"""
+        try:
+            if not self.api_key:
+                print(f"⚠️  Writer.com API key未配置，使用模拟结果")
+                return self._detect_mock(text)
+
+            # Writer.com API实现
+            # TODO: 根据官方文档实现
+            return self._detect_mock(text)
+
+        except Exception as e:
+            print(f"❌ Writer.com检测失败: {e}")
+            return self._detect_mock(text)
+
+    def _detect_mock(self, text: str) -> Dict[str, Any]:
+        """
+        模拟AI检测（用于测试）
+
+        基于文本特征简单判断：
+        - 段落过于整齐
+        - 句子长度过于平均
+        - 缺少口语化表达
+        """
+        # 简单启发式规则
+        paragraphs = [p for p in text.split("\n") if p.strip()]
+        para_lengths = [len(p) for p in paragraphs]
+
+        # 计算段落长度的标准差（越小说明越整齐）
+        if len(para_lengths) > 1:
+            avg_length = sum(para_lengths) / len(para_lengths)
+            variance = sum((x - avg_length) ** 2 for x in para_lengths) / len(para_lengths)
+            std_dev = variance ** 0.5
+            # 标准差越小，AI概率越高
+            uniformity_score = max(0, min(1, 1 - std_dev / 100))
+        else:
+            uniformity_score = 0.5
+
+        # 简单的关键词检测
+        ai_keywords = ["首先", "其次", "最后", "总之", "综上所述", "值得注意的是"]
+        keyword_count = sum(1 for kw in ai_keywords if kw in text)
+        keyword_score = min(1, keyword_count / 3)
+
+        # 综合评分
+        ai_score = 0.3 + (uniformity_score * 0.4) + (keyword_score * 0.3)
+        ai_score = round(min(0.99, max(0.01, ai_score)), 2)
+
+        return {
+            "ai_score": ai_score,
+            "ai_percentage": round(ai_score * 100),
+            "human_percentage": round((1 - ai_score) * 100),
+            "detector": f"{self.detector_type}(mock)",
+            "confidence": "medium",
+            "enabled": self.enabled,
+            "weight": self.weight
+        }
+
+
+class MultiAIDetector:
+    """多AI检测器管理类，支持同时使用多个检测平台"""
+
+    def __init__(self):
+        """初始化多检测器，从环境变量读取配置"""
+        self.detectors = self._load_detectors_from_env()
+
+    def _load_detectors_from_env(self) -> List[AIDetector]:
+        """从环境变量加载检测器配置"""
+        detectors = []
+
+        # 检测器配置映射
+        detector_configs = {
+            "zhuque": {
+                "type": "zhuque",
+                "enabled_env": "ZHUQUE_DETECTOR_ENABLED",
+                "key_env": "ZHUQUE_API_KEY",
+                "endpoint_env": "ZHUQUE_ENDPOINT",
+                "weight_env": "ZHUQUE_WEIGHT"
+            },
+            "gptzero": {
+                "type": "gptzero",
+                "enabled_env": "GPTZERO_DETECTOR_ENABLED",
+                "key_env": "GPTZERO_API_KEY",
+                "endpoint_env": "GPTZERO_ENDPOINT",
+                "weight_env": "GPTZERO_WEIGHT"
+            },
+            "copyleaks": {
+                "type": "copyleaks",
+                "enabled_env": "COPYLEAKS_DETECTOR_ENABLED",
+                "key_env": "COPYLEAKS_API_KEY",
+                "endpoint_env": "COPYLEAKS_ENDPOINT",
+                "weight_env": "COPYLEAKS_WEIGHT"
+            },
+            "originality": {
+                "type": "originality",
+                "enabled_env": "ORIGINALITY_DETECTOR_ENABLED",
+                "key_env": "ORIGINALITY_API_KEY",
+                "endpoint_env": "ORIGINALITY_ENDPOINT",
+                "weight_env": "ORIGINALITY_WEIGHT"
+            },
+            "writer": {
+                "type": "writer",
+                "enabled_env": "WRITER_DETECTOR_ENABLED",
+                "key_env": "WRITER_API_KEY",
+                "endpoint_env": "WRITER_ENDPOINT",
+                "weight_env": "WRITER_WEIGHT"
+            }
+        }
+
+        for name, config in detector_configs.items():
+            # 检查是否启用
+            enabled = os.getenv(config["enabled_env"], "false").lower() in ("true", "1", "yes")
+
+            if not enabled:
+                continue
+
+            # 读取配置
+            detector_config = {
+                "api_key": os.getenv(config["key_env"], ""),
+                "endpoint": os.getenv(config["endpoint_env"], ""),
+                "enabled": True,
+                "weight": float(os.getenv(config["weight_env"], "1.0"))
+            }
+
+            detectors.append(AIDetector(config["type"], detector_config))
+
+        return detectors
+
+    def detect(self, text: str) -> Dict[str, Any]:
+        """
+        使用所有启用的检测器进行检测，并综合计算结果
+
+        Args:
+            text: 待检测的文本
+
+        Returns:
+            综合检测结果：
+            {
+                "ai_score": 0.75,  # 加权平均AI分数
+                "ai_percentage": 75,  # AI百分比
+                "human_percentage": 25,  # 人类百分比
+                "detector_results": [...],  # 各检测器的详细结果
+                "detector_count": 3,  # 使用的检测器数量
+                "confidence": "high"  # 综合置信度
+            }
+        """
+        if not self.detectors:
+            print("⚠️  未启用任何AI检测器，使用模拟检测")
+            mock_detector = AIDetector("mock", {"enabled": True, "weight": 1.0})
+            result = mock_detector.detect(text)
+            return {
+                "ai_score": result["ai_score"],
+                "ai_percentage": result["ai_percentage"],
+                "human_percentage": result["human_percentage"],
+                "detector_results": [result],
+                "detector_count": 1,
+                "confidence": result["confidence"]
+            }
+
+        # 调用所有检测器
+        detector_results = []
+        for detector in self.detectors:
+            print(f"  📊 使用 {detector.detector_type} 检测...")
+            result = detector.detect(text)
+            detector_results.append(result)
+
+        # 计算加权平均
+        total_weight = sum(r["weight"] for r in detector_results if r.get("enabled", True))
+        if total_weight == 0:
+            total_weight = 1
+
+        weighted_ai_score = sum(
+            r["ai_score"] * r["weight"]
+            for r in detector_results
+            if r.get("enabled", True)
+        ) / total_weight
+
+        # 计算综合置信度
+        enabled_results = [r for r in detector_results if r.get("enabled", True)]
+        if len(enabled_results) >= 3:
+            confidence = "high"
+        elif len(enabled_results) >= 2:
+            confidence = "medium"
+        else:
+            confidence = "low"
+
+        return {
+            "ai_score": round(weighted_ai_score, 2),
+            "ai_percentage": round(weighted_ai_score * 100),
+            "human_percentage": round((1 - weighted_ai_score) * 100),
+            "detector_results": detector_results,
+            "detector_count": len(enabled_results),
+            "confidence": confidence
+        }
+
+    def get_enabled_detectors(self) -> List[str]:
+        """获取已启用的检测器列表"""
+        return [d.detector_type for d in self.detectors if d.enabled]
+
+
+def calculate_ai_detection_score(ai_percentage: float) -> float:
+    """
+    根据AI检测率计算得分（直接映射法）
+
+    评分规则（4分制）：
+    - 得分 = (1 - AI率) × 4
+    - 保留2位小数
+
+    示例：
+    - AI率 0% → 人类率 100% → 得分 4.00
+    - AI率 30% → 人类率 70% → 得分 2.80
+    - AI率 50% → 人类率 50% → 得分 2.00
+    - AI率 100% → 人类率 0% → 得分 0.00
+
+    Args:
+        ai_percentage: AI检测百分比 (0-100)
+
+    Returns:
+        检测得分 (0-4分，保留2位小数)
+    """
+    # 计算人类率并映射到4分制
+    human_percentage = 1 - (ai_percentage / 100)
+    score = human_percentage * 4
+    return round(score, 2)
+
+
 # ====== 3. 简单可实现的自动评价指标 ======
 
 
@@ -252,21 +690,22 @@ def evaluate_article(text: str, length_range: Optional[Tuple[int, int]] = None) 
     """
     规则评估函数：基于"规则+统计"型评分，简单、无成本，评估结构是否对齐。
 
-    评分体系（规则总分 5 分）：
-    - in_length_range: 1.5分 - 字数是否在提示词要求范围内
-    - para_count_reasonable: 1分 - 段落数是否合理（5-20段）
-    - avg_para_length_ok: 0.5分 - 平均段落长度是否合理（30-150字）
-    - has_3_points: 1分 - 中间是否有≥3个观点段落（结构完整性）
-    - has_headings: 1分 - 是否有小标题结构（格式规范性）
+    评分体系（规则总分 3 分）- 2026.3.14 调整：
+    - in_length_range: 1.0分 - 字数是否在提示词要求范围内
+    - para_count_reasonable: 0.7分 - 段落数是否合理（5-20段）
+    - avg_para_length_ok: 0.3分 - 平均段落长度是否合理（30-150字）
+    - has_3_points: 0.6分 - 中间是否有≥3个观点段落（结构完整性）
+    - has_headings: 0.4分 - 是否有小标题结构（格式规范性）
 
     注意：开头质量、经典引用、内容深度、文笔、情感等维度由 AI 评估函数处理。
+    AI检测得分由独立的检测模块处理。
 
     Args:
         text: 待评估的文章文本
         length_range: 字数范围 (min, max)，None 则使用默认值 (400, 1500)
 
     Returns:
-        包含规则评估结果的字典，rule_score 为规则得分（0-5分）
+        包含规则评估结果的字典，rule_score 为规则得分（0-3分）
     """
     if length_range is None:
         length_range = (400, 1500)
@@ -316,11 +755,11 @@ def evaluate_article(text: str, length_range: Optional[Tuple[int, int]] = None) 
     # 计算规则得分
     rule_score = 0.0
     weights = {
-        "in_length_range": 1.5,
-        "para_count_reasonable": 1.0,
-        "avg_para_length_ok": 0.5,
-        "has_3_points": 1.0,
-        "has_headings": 1.0,
+        "in_length_range": 1.0,
+        "para_count_reasonable": 0.7,
+        "avg_para_length_ok": 0.3,
+        "has_3_points": 0.6,
+        "has_headings": 0.4,
     }
 
     rule_evaluations = {
@@ -337,8 +776,9 @@ def evaluate_article(text: str, length_range: Optional[Tuple[int, int]] = None) 
 
     # 返回规则评估结果
     details = {
-        "rule_score": round(rule_score, 2),  # 规则评估得分（0-5）
-        "ai_score": None,                    # AI评估得分（待填充，0-5）
+        "rule_score": round(rule_score, 2),  # 规则评估得分（0-3）
+        "ai_score": None,                    # AI评估得分（待填充，0-3）
+        "detection_score": None,             # AI检测得分（待填充，0-4）
         "total_score": None,                 # 总分（待计算，0-10）
         **rule_evaluations,                  # 各维度评估结果
         "chars": chars,
@@ -354,19 +794,21 @@ def evaluate_article_via_ai(text: str, prompt: str) -> Dict[str, Any]:
     """
     使用AI模型对文本进行语义层面的评估。
 
-    评估维度（AI总分 5 分）：
-    - intro_quality: 1分 - 开头是否直接入题，有吸引力，符合人设
-    - classic_naturalness: 1分 - 经典引用是否自然恰当，与观点紧密相关
-    - content_depth: 1分 - 内容是否有深度，观点是否有启发性
-    - writing_fluency: 1分 - 文笔是否流畅自然，语言是否有节奏感
-    - emotional_resonance: 1分 - 是否能引发情感共鸣，是否打动人心（含AI痕迹检测）
+    评估维度（AI总分 3 分）- 2026.3.14 调整：
+    - intro_quality: 0.6分 - 开头是否直接入题，有吸引力，符合人设
+    - classic_naturalness: 0.6分 - 经典引用是否自然恰当，与观点紧密相关
+    - content_depth: 0.6分 - 内容是否有深度，观点是否有启发性
+    - writing_fluency: 0.6分 - 文笔是否流畅自然，语言是否有节奏感
+    - emotional_resonance: 0.6分 - 是否能引发情感共鸣，是否打动人心（含AI痕迹检测）
+
+    注意：AI检测由独立的检测模块处理，不再包含在语义评估中。
 
     Args:
         text: 待评估的文章文本
         prompt: 原始提示词（作为评估参考）
 
     Returns:
-        包含AI评估结果的字典，ai_score 为AI评估总分（0-5分）
+        包含AI评估结果的字典，ai_score 为AI评估总分（0-3分）
     """
     import json
     import os
@@ -405,35 +847,35 @@ def evaluate_article_via_ai(text: str, prompt: str) -> Dict[str, Any]:
 
         请从以下5个维度进行评估，每个维度给出评分和理由：
 
-        1. 开头质量（1分）：
+        1. 开头质量（0.6分）：
            - 评分标准：开头是否直接入题，有吸引力，符合人设
            - 0分：开头拖沓，没有吸引力，不符合人设
-           - 0.5分：开头尚可，但吸引力不足或人设不够明显
-           - 1分：开头直接入题，有吸引力，符合人设
+           - 0.3分：开头尚可，但吸引力不足或人设不够明显
+           - 0.6分：开头直接入题，有吸引力，符合人设
 
-        2. 经典引用恰当性（1分）：
+        2. 经典引用恰当性（0.6分）：
            - 评分标准：经典引用是否自然恰当，与观点紧密相关
            - 0分：没有引用或引用生硬、不相关
-           - 0.5分：有引用但不够自然或相关性一般
-           - 1分：引用自然恰当，与观点紧密相关
+           - 0.3分：有引用但不够自然或相关性一般
+           - 0.6分：引用自然恰当，与观点紧密相关
 
-        3. 内容深度与思想性（1分）：
+        3. 内容深度与思想性（0.6分）：
            - 评分标准：内容是否有深度，观点是否有启发性，避免空洞
            - 0分：内容空洞，观点老套，没有启发性
-           - 0.5分：内容有一定深度，但观点不够深入
-           - 1分：内容有深度，观点有启发性，能引发思考
+           - 0.3分：内容有一定深度，但观点不够深入
+           - 0.6分：内容有深度，观点有启发性，能引发思考
 
-        4. 文笔流畅度与可读性（1分）：
-           - 评分标准：文笔是否流畅自然，语言是否有节奏感，是否有人味儿
-           - 0分：文笔生硬，语言不流畅，AI痕迹明显
-           - 0.5分：文笔尚可，但流畅度不足或有AI痕迹
-           - 1分：文笔流畅自然，语言有节奏感，有人味儿
+        4. 文笔流畅度与可读性（0.6分）：
+           - 评分标准：文笔是否流畅自然，语言是否有节奏感
+           - 0分：文笔生硬，语言不流畅
+           - 0.3分：文笔尚可，但流畅度不足
+           - 0.6分：文笔流畅自然，语言有节奏感
 
-        5. 情感共鸣（1分）：
-           - 评分标准：是否能引发情感共鸣，是否打动人心，是否有人味儿
-           - 0分：情感平淡，无法引发共鸣，AI痕迹明显
-           - 0.5分：有一定情感，但共鸣不足或有AI痕迹
-           - 1分：能引发情感共鸣，打动人心，有人味儿
+        5. 情感共鸣（0.6分）：
+           - 评分标准：是否能引发情感共鸣，是否打动人心
+           - 0分：情感平淡，无法引发共鸣
+           - 0.3分：有一定情感，但共鸣不足
+           - 0.6分：能引发情感共鸣，打动人心
 
         请严格按照以下JSON格式返回评估结果：
         {{
@@ -446,9 +888,8 @@ def evaluate_article_via_ai(text: str, prompt: str) -> Dict[str, Any]:
 
         注意：
         - 只返回JSON，不要包含任何其他文字说明
-        - 每个维度的评分必须在规定范围内（0-1分）
+        - 每个维度的评分必须在规定范围内（0-1分），系统会自动转换为0-0.6分制
         - 理由说明要简明扼要，指出优点或不足
-        - 在"情感共鸣"维度中，要综合考虑情感表达和AI痕迹（人味儿）
         """)
 
     try:
@@ -473,14 +914,16 @@ def evaluate_article_via_ai(text: str, prompt: str) -> Dict[str, Any]:
             json_str = content[json_start:json_end]
             ai_result = json.loads(json_str)
 
-            # 计算AI评估总分（5分制）
+            # 计算AI评估总分（AI返回的是1分制，需要转换为0.6分制）
+            # 总分从5分改为3分，所以每个维度从1分改为0.6分
+            scale_factor = 0.6  # 1分制 → 0.6分制的转换系数
             ai_score = (
                 ai_result.get("intro_quality", {}).get("score", 0) +
                 ai_result.get("classic_naturalness", {}).get("score", 0) +
                 ai_result.get("content_depth", {}).get("score", 0) +
                 ai_result.get("writing_fluency", {}).get("score", 0) +
                 ai_result.get("emotional_resonance", {}).get("score", 0)
-            )
+            ) * scale_factor
 
             return {
                 "ai_score": round(ai_score, 2),
@@ -521,6 +964,9 @@ def summarize_evaluations(results: List[Dict[str, Any]], length_range: Optional[
     # ====== AI评估维度建议 ======
     ai_suggestions = []
 
+    # 注意：AI评估现在使用0.6分制（从1分制转换），所以阈值需要相应调整
+    # 1分制的0.6分 → 0.6分制的0.36分，约为0.4分
+
     # 1. 开头质量
     intro_bad = sum(1 for r in results if r["evaluation"].get("ai_details", {}).get("intro_quality", {}).get("score", 1) < 0.6)
     if intro_bad > 0:
@@ -532,7 +978,7 @@ def summarize_evaluations(results: List[Dict[str, Any]], length_range: Optional[
         ai_suggestions.append(f"- 经典引用（{classic_unnatural}个模型不自然）：引用经典时要像老教师随口而出的感慨，避免生硬堆砌。引用后要立即关联到观点，比如「古人说XXX，我想起来年轻时候...」。不要用「某某曾说过」的讲课腔。")
 
     # 3. 内容深度与思想性
-    content_shallow = sum(1 for r in results if r["evaluation"].get("ai_details", {}).get("content_depth", {}).get("score", 1.5) < 1.0)
+    content_shallow = sum(1 for r in results if r["evaluation"].get("ai_details", {}).get("content_depth", {}).get("score", 1) < 0.6)
     if content_shallow > 0:
         ai_suggestions.append(f"- 内容深度（{content_shallow}个模型不足）：每个观点都要有具体的故事或细节支撑，避免空泛的道理说教。要写出个人独特体验，比如具体的一件事、一个场景、一个细节，而不是泛泛而谈。")
 
@@ -691,12 +1137,13 @@ def calculate_version_summary(evaluations: List[Dict[str, Any]]) -> Dict[str, An
     """
     计算单个版本的评估摘要。
 
-    基于新的混合评分体系（规则+AI），计算各维度的平均值。
+    基于新的混合评分体系（规则+AI+检测），计算各维度的平均值。
     """
     if not evaluations:
         return {
             "avg_rule_score": 0,
             "avg_ai_score": 0,
+            "avg_detection_score": 0,
             "avg_total_score": 0,
             "max_total_score": 0,
             "min_total_score": 0,
@@ -707,6 +1154,7 @@ def calculate_version_summary(evaluations: List[Dict[str, Any]]) -> Dict[str, An
     # 提取各维度得分
     rule_scores = [e["evaluation"].get("rule_score", 0) for e in evaluations]
     ai_scores = [e["evaluation"].get("ai_score", 0) for e in evaluations]
+    detection_scores = [e["evaluation"].get("detection_score", 0) for e in evaluations]
     total_scores = [e["evaluation"].get("total_score", 0) for e in evaluations]
 
     # 找出最佳模型
@@ -720,6 +1168,7 @@ def calculate_version_summary(evaluations: List[Dict[str, Any]]) -> Dict[str, An
     return {
         "avg_rule_score": round(sum(rule_scores) / len(rule_scores), 2),
         "avg_ai_score": round(sum(ai_scores) / len(ai_scores), 2),
+        "avg_detection_score": round(sum(detection_scores) / len(detection_scores), 2),
         "avg_total_score": round(sum(total_scores) / len(total_scores), 2),
         "max_total_score": max_total_score,
         "min_total_score": min_total_score,
@@ -1268,11 +1717,31 @@ def run_evaluation(base_version: Optional[int] = None, skip_optimize: bool = Fal
             print(f"  正在进行AI评估...")
             ai_evaluation = evaluate_article_via_ai(article, prompt)
 
-            # 3. 合并评估结果
+            # 3. AI检测（检测文本人类化程度）
+            print(f"  正在进行AI检测...")
+            multi_detector = MultiAIDetector()
+            enabled_detectors = multi_detector.get_enabled_detectors()
+
+            if enabled_detectors:
+                print(f"  已启用检测器: {', '.join(enabled_detectors)}")
+            else:
+                print(f"  未启用检测器，使用模拟检测（在.env中配置检测器）")
+
+            detection_result = multi_detector.detect(article)
+            detection_score = calculate_ai_detection_score(detection_result["ai_percentage"])
+
+            # 4. 合并评估结果
             combined_evaluation = {
                 **rule_evaluation,  # 规则评估结果
                 **ai_evaluation,    # AI评估结果
-                "total_score": rule_evaluation["rule_score"] + ai_evaluation.get("ai_score", 0),  # 计算总分
+                "detection_score": round(detection_score, 2),  # AI检测得分
+                "detection_result": detection_result,          # AI检测详情
+                "total_score": round(
+                    rule_evaluation["rule_score"] +
+                    ai_evaluation.get("ai_score", 0) +
+                    detection_score,
+                    2
+                ),  # 计算总分（规则3 + AI3 + 检测4 = 10分）
             }
 
             all_results.append(
@@ -1287,10 +1756,12 @@ def run_evaluation(base_version: Optional[int] = None, skip_optimize: bool = Fal
             # 打印评分结果
             rule_score = rule_evaluation["rule_score"]
             ai_score = ai_evaluation.get("ai_score", 0)
+            detection_score = combined_evaluation["detection_score"]
             total_score = combined_evaluation["total_score"]
+            ai_percentage = detection_result["ai_percentage"]
             print(
-                f"  规则分: {rule_score}/5, AI分: {ai_score}/5, 总分: {total_score}/10 | "
-                f"字数: {rule_evaluation['chars']}, 段落数: {rule_evaluation['paragraphs']}"
+                f"  规则分: {rule_score}/3, AI分: {ai_score}/3, 检测分: {detection_score}/4, 总分: {total_score}/10 | "
+                f"AI率: {ai_percentage}%, 字数: {rule_evaluation['chars']}, 段落: {rule_evaluation['paragraphs']}"
             )
 
     # 汇总评价并输出为 JSON（同样放到当前版本目录下）
