@@ -1025,4 +1025,860 @@ git commit -m "feat: 实现配置管理器
 - 单元测试
 - 提交检查点
 
+---
+
+## Chunk 3: Evaluators 模块
+
+### Task 6: 创建 evaluators 模块包结构
+
+**Files:**
+- Create: `promptbench/evaluators/__init__.py`
+- Create: `promptbench/evaluators/rule_evaluator.py`
+- Create: `promptbench/evaluators/ai_evaluator.py`
+
+- [ ] **Step 1: 创建 evaluators 包的 `__init__.py`**
+
+```python
+# promptbench/evaluators/__init__.py
+"""
+评估器模块
+
+提供规则评估和AI语义评估功能。
+"""
+
+from promptbench.evaluators.rule_evaluator import RuleEvaluator
+from promptbench.evaluators.ai_evaluator import AIEvaluator
+
+__all__ = ["RuleEvaluator", "AIEvaluator"]
+```
+
+- [ ] **Step 2: 创建空的 rule_evaluator.py**
+
+```python
+# promptbench/evaluators/rule_evaluator.py
+"""
+规则评估器
+
+基于规则和统计的文本质量评估。
+"""
+```
+
+- [ ] **Step 3: 创建空的 ai_evaluator.py**
+
+```python
+# promptbench/evaluators/ai_evaluator.py
+"""
+AI语义评估器
+
+使用LLM进行文本质量的语义层面评估。
+"""
+```
+
+- [ ] **Step 4: 提交包结构**
+
+```bash
+git add promptbench/evaluators/
+git commit -m "feat: 创建 evaluators 模块包结构"
+```
+
+---
+
+### Task 7: 实现规则评估器（RuleEvaluator）
+
+**Files:**
+- Modify: `promptbench/evaluators/rule_evaluator.py`
+- Test: `tests/test_rule_evaluator.py`
+
+- [ ] **Step 1: 编写规则评估器的失败测试**
+
+```python
+# tests/test_rule_evaluator.py
+import pytest
+from promptbench.evaluators.rule_evaluator import RuleEvaluator
+from promptbench.core.entities import RuleEvaluation
+from promptbench.core.constants import DEFAULT_RULE_WEIGHTS
+
+def test_rule_evaluator_basic():
+    """测试基本规则评估"""
+    evaluator = RuleEvaluator()
+
+    text = """
+    退休之后，没事就来公园散散步。
+
+    第一，这样可以锻炼身体。
+    第二，还能交到朋友。
+    第三，心情也会变好。
+
+    总之，退休生活要有规律。
+    """
+
+    result = evaluator.evaluate(text)
+
+    assert isinstance(result, RuleEvaluation)
+    assert result.rule_score >= 0
+    assert result.rule_score <= 3.0
+    assert result.chars > 0
+    assert result.paragraphs > 0
+
+def test_rule_evaluator_length_range():
+    """测试字数范围检查"""
+    evaluator = RuleEvaluator(length_range=(100, 200))
+
+    # 测试过短文本
+    short_text = "太短了"
+    result = evaluator.evaluate(short_text)
+    assert not result.in_length_range
+
+    # 测试合适文本
+    proper_text = "这是一个长度合适的文本。" * 20
+    result = evaluator.evaluate(proper_text)
+    assert result.in_length_range
+
+def test_rule_evaluator_paragraph_structure():
+    """测试段落结构检查"""
+    evaluator = RuleEvaluator()
+
+    # 测试有结构的文本
+    structured_text = """
+    开头段落。
+
+    第一个观点。
+    第二个观点。
+    第三个观点。
+
+    结尾段落。
+    """
+
+    result = evaluator.evaluate(structured_text)
+    assert result.has_3_points
+
+def test_rule_evaluator_headings():
+    """测试小标题检测"""
+    evaluator = RuleEvaluator()
+
+    # 测试带小标题的文本
+    text_with_headings = """
+    开头段落。
+
+    ## 第一点
+    内容...
+
+    ## 第二点
+    内容...
+
+    结尾。
+    """
+
+    result = evaluator.evaluate(text_with_headings)
+    assert result.has_headings
+
+def test_rule_evaluator_custom_weights():
+    """测试自定义权重"""
+    custom_weights = {
+        "in_length_range": 2.0,
+        "para_count_reasonable": 0.5,
+        "avg_para_length_ok": 0.2,
+        "has_3_points": 0.2,
+        "has_headings": 0.1,
+    }
+    evaluator = RuleEvaluator(weights=custom_weights)
+
+    text = "测试文本"
+    result = evaluator.evaluate(text)
+
+    # 验证权重被正确应用
+    assert result.rule_score >= 0
+```
+
+- [ ] **Step 2: 运行测试（预期失败）**
+
+```bash
+pytest tests/test_rule_evaluator.py -v
+```
+Expected: FAIL - RuleEvaluator not defined
+
+- [ ] **Step 3: 实现 RuleEvaluator 类**
+
+```python
+# promptbench/evaluators/rule_evaluator.py
+"""
+规则评估器
+
+基于规则和统计的文本质量评估。
+"""
+
+import re
+from typing import Optional, Tuple, Dict, Any
+from promptbench.core.entities import RuleEvaluation
+from promptbench.core.constants import (
+    DEFAULT_RULE_WEIGHTS,
+    REASONABLE_PARAGRAPH_COUNT,
+    REASONABLE_PARAGRAPH_LENGTH,
+    MIN_POINT_PARAGRAPHS,
+    HEADING_PATTERNS,
+    DEFAULT_LENGTH_RANGE,
+)
+
+
+class RuleEvaluator:
+    """
+    规则评估器
+
+    基于预定义规则和统计分析评估文本质量，
+    包括字数范围、段落数量、段落长度、结构完整性和格式规范性。
+    """
+
+    def __init__(
+        self,
+        length_range: Optional[Tuple[int, int]] = None,
+        weights: Optional[Dict[str, float]] = None,
+    ):
+        """
+        初始化规则评估器
+
+        Args:
+            length_range: 字数范围 (min, max)，None 使用默认值
+            weights: 自定义权重字典，None 使用默认权重
+        """
+        self.length_range = length_range or DEFAULT_LENGTH_RANGE
+        self.weights = weights or DEFAULT_RULE_WEIGHTS.copy()
+
+    def evaluate(self, text: str, prompt_length_range: Optional[Tuple[int, int]] = None) -> RuleEvaluation:
+        """
+        评估文本
+
+        Args:
+            text: 待评估的文本
+            prompt_length_range: 提示词要求的字数范围（可选）
+
+        Returns:
+            RuleEvaluation: 规则评估结果
+        """
+        # 使用提示词要求的范围（如果提供），否则使用评估器的默认范围
+        effective_range = prompt_length_range or self.length_range
+        min_length, max_length = effective_range
+
+        # 基础统计
+        chars = len(text)
+        paragraphs = [p for p in text.split("\n") if p.strip()]
+        para_count = len(paragraphs)
+
+        # 1. 段落数是否合理（避免过度碎片化或过于冗长）
+        para_count_reasonable = REASONABLE_PARAGRAPH_COUNT[0] <= para_count <= REASONABLE_PARAGRAPH_COUNT[1]
+
+        # 2. 平均段落长度是否合理（避免碎片化）
+        avg_para_length = chars / para_count if para_count > 0 else 0
+        avg_para_length_ok = REASONABLE_PARAGRAPH_LENGTH[0] <= avg_para_length <= REASONABLE_PARAGRAPH_LENGTH[1]
+
+        # 3. 结构检测（中间是否有足够的观点段落）
+        middle_para_count = max(0, para_count - 2)
+        has_3_points = middle_para_count >= MIN_POINT_PARAGRAPHS
+
+        # 4. 是否有小标题结构
+        has_headings = self._detect_headings(paragraphs)
+
+        # 5. 字数是否在指定范围内
+        in_length_range = min_length <= chars <= max_length
+
+        # 计算规则得分
+        rule_score = 0.0
+        rule_evaluations = {
+            "in_length_range": in_length_range,
+            "para_count_reasonable": para_count_reasonable,
+            "avg_para_length_ok": avg_para_length_ok,
+            "has_3_points": has_3_points,
+            "has_headings": has_headings,
+        }
+
+        for key, passed in rule_evaluations.items():
+            if passed and key in self.weights:
+                rule_score += self.weights[key]
+
+        return RuleEvaluation(
+            rule_score=round(rule_score, 2),
+            in_length_range=in_length_range,
+            para_count_reasonable=para_count_reasonable,
+            avg_para_length_ok=avg_para_length_ok,
+            has_3_points=has_3_points,
+            has_headings=has_headings,
+            chars=chars,
+            paragraphs=para_count,
+            avg_para_length=round(avg_para_length, 1),
+            length_range=f"{min_length}-{max_length}",
+        )
+
+    def _detect_headings(self, paragraphs: list[str]) -> bool:
+        """
+        检测文本中是否包含小标题
+
+        Args:
+            paragraphs: 段落列表
+
+        Returns:
+            是否检测到小标题
+        """
+        for para in paragraphs:
+            para_stripped = para.strip()
+            for pattern in HEADING_PATTERNS:
+                if re.match(pattern, para_stripped, re.MULTILINE):
+                    return True
+        return False
+```
+
+- [ ] **Step 4: 运行测试（预期通过）**
+
+```bash
+pytest tests/test_rule_evaluator.py -v
+```
+Expected: All PASS
+
+- [ ] **Step 5: 提交规则评估器实现**
+
+```bash
+git add promptbench/evaluators/rule_evaluator.py tests/test_rule_evaluator.py
+git commit -m "feat: 实现规则评估器
+
+- 实现 RuleEvaluator 类
+- 支持 5 个维度的规则评估
+- 支持自定义字数范围和权重
+- 添加完整的单元测试"
+```
+
+---
+
+### Task 8: 实现 AI 评估器（AIEvaluator）
+
+**Files:**
+- Modify: `promptbench/evaluators/ai_evaluator.py`
+- Test: `tests/test_ai_evaluator.py`
+
+- [ ] **Step 1: 编写 AI 评估器的失败测试**
+
+```python
+# tests/test_ai_evaluator.py
+import pytest
+from promptbench.evaluators.ai_evaluator import AIEvaluator
+from promptbench.core.entities import AIEvaluation
+from unittest.mock import Mock, patch
+
+def test_ai_evaluator_basic():
+    """测试基本AI评估"""
+    evaluator = AIEvaluator()
+
+    text = "退休之后，没事就来公园散散步。"
+    prompt = "写一篇关于退休生活的短文"
+
+    # Mock the client
+    with patch.object(evaluator, '_get_client') as mock_get_client:
+        mock_client = Mock()
+        mock_response = Mock()
+        mock_response.choices = [Mock()]
+        mock_response.choices[0].message.content = '''{
+            "intro_quality": {"score": 0.8, "reason": "开头直接入题"},
+            "classic_naturalness": {"score": 0.6, "reason": "引用自然"},
+            "content_depth": {"score": 0.7, "reason": "有一定深度"},
+            "writing_fluency": {"score": 0.9, "reason": "文笔流畅"},
+            "emotional_resonance": {"score": 0.5, "reason": "情感一般"}
+        }'''
+        mock_client.chat.completions.create.return_value = mock_response
+        mock_get_client.return_value = mock_client
+
+        result = evaluator.evaluate(text, prompt)
+
+        assert isinstance(result, AIEvaluation)
+        assert 0 <= result.ai_score <= 3.0
+        assert result.error is None
+
+def test_ai_evaluator_client_failure():
+    """测试客户端获取失败"""
+    evaluator = AIEvaluator()
+
+    with patch.object(evaluator, '_get_client', return_value=None):
+        result = evaluator.evaluate("测试文本", "测试提示词")
+
+        assert result.ai_score == 0
+        assert result.error is not None
+        assert "无法获取" in result.error
+
+def test_ai_evaluator_json_parse_error():
+    """测试JSON解析错误"""
+    evaluator = AIEvaluator()
+
+    with patch.object(evaluator, '_get_client') as mock_get_client:
+        mock_client = Mock()
+        mock_response = Mock()
+        mock_response.choices = [Mock()]
+        mock_response.choices[0].message.content = "这不是有效的JSON"
+        mock_client.chat.completions.create.return_value = mock_response
+        mock_get_client.return_value = mock_client
+
+        result = evaluator.evaluate("测试文本", "测试提示词")
+
+        assert result.ai_score == 0
+        assert result.error is not None
+
+def test_ai_evaluator_api_error():
+    """测试API调用错误"""
+    evaluator = AIEvaluator()
+
+    with patch.object(evaluator, '_get_client') as mock_get_client:
+        mock_client = Mock()
+        mock_client.chat.completions.create.side_effect = Exception("API错误")
+        mock_get_client.return_value = mock_client
+
+        result = evaluator.evaluate("测试文本", "测试提示词")
+
+        assert result.ai_score == 0
+        assert result.error is not None
+        assert "API错误" in result.error
+```
+
+- [ ] **Step 2: 运行测试（预期失败）**
+
+```bash
+pytest tests/test_ai_evaluator.py -v
+```
+Expected: FAIL - AIEvaluator not defined
+
+- [ ] **Step 3: 实现 AIEvaluator 类**
+
+```python
+# promptbench/evaluators/ai_evaluator.py
+"""
+AI语义评估器
+
+使用LLM进行文本质量的语义层面评估。
+"""
+
+import json
+import textwrap
+from typing import Optional, Dict, Any
+from promptbench.core.entities import AIEvaluation
+from promptbench.core.constants import DEFAULT_AI_WEIGHTS
+from promptbench.core.config import ConfigManager
+
+
+class AIEvaluator:
+    """
+    AI语义评估器
+
+    使用LLM对文本进行语义层面的质量评估，
+    包括开头质量、经典引用、内容深度、文笔流畅度和情感共鸣。
+    """
+
+    def __init__(self, model: Optional[str] = None, provider: Optional[str] = None):
+        """
+        初始化AI评估器
+
+        Args:
+            model: 评估模型名称，None 使用默认模型
+            provider: 模型提供商，None 使用默认提供商
+        """
+        self.config_manager = ConfigManager()
+        self.model = model or self.config_manager.get_env("EVALUATION_MODEL", "gpt-5.4")
+        self.provider = provider or self.config_manager.get_env("EVALUATION_PROVIDER", "openai")
+        self.scale_factor = 0.6  # 1分制 → 0.6分制的转换系数
+
+    def evaluate(self, text: str, prompt: str) -> AIEvaluation:
+        """
+        使用AI评估文本质量
+
+        Args:
+            text: 待评估的文本
+            prompt: 原始提示词（作为评估参考）
+
+        Returns:
+            AIEvaluation: AI评估结果
+        """
+        client = self._get_client()
+
+        if client is None:
+            return AIEvaluation(
+                ai_score=0,
+                ai_details={},
+                error=f"无法获取 {self.provider} 客户端，请检查 .env 配置"
+            )
+
+        try:
+            ai_result = self._call_ai_evaluation(client, text, prompt)
+
+            if ai_result is None:
+                return AIEvaluation(
+                    ai_score=0,
+                    ai_details={},
+                    error="AI返回结果无法解析为JSON"
+                )
+
+            # 计算AI评估总分
+            ai_score = (
+                ai_result.get("intro_quality", {}).get("score", 0) +
+                ai_result.get("classic_naturalness", {}).get("score", 0) +
+                ai_result.get("content_depth", {}).get("score", 0) +
+                ai_result.get("writing_fluency", {}).get("score", 0) +
+                ai_result.get("emotional_resonance", {}).get("score", 0)
+            ) * self.scale_factor
+
+            return AIEvaluation(
+                ai_score=round(ai_score, 2),
+                ai_details=ai_result
+            )
+
+        except Exception as e:
+            return AIEvaluation(
+                ai_score=0,
+                ai_details={},
+                error=f"AI评估失败: {str(e)}"
+            )
+
+    def _get_client(self):
+        """
+        获取LLM客户端
+
+        Returns:
+            OpenAI客户端或None（如果获取失败）
+        """
+        try:
+            from openai import OpenAI
+
+            provider_config = self.config_manager.get_provider_config(self.provider)
+            client = OpenAI(
+                base_url=provider_config["base_url"],
+                api_key=provider_config["api_key"]
+            )
+            return client
+
+        except Exception:
+            return None
+
+    def _call_ai_evaluation(self, client, text: str, prompt: str) -> Optional[Dict[str, Any]]:
+        """
+        调用AI进行评估
+
+        Args:
+            client: OpenAI客户端
+            text: 待评估文本
+            prompt: 原始提示词
+
+        Returns:
+            AI评估结果字典，None 表示解析失败
+        """
+        system_msg = (
+            "你是一位专业的文本质量评估专家，擅长评估中文文章的内容质量、文笔水平和情感表达。"
+            "你的任务是根据原始提示词的要求，对生成的文章进行客观、准确的评估。"
+        )
+
+        user_msg = textwrap.dedent(f"""
+            请根据以下原始提示词的要求，对文章进行评估。
+
+            原始提示词要求：
+            --- 提示词开始 ---
+            {prompt.strip()}
+            --- 提示词结束 ---
+
+            待评估文章：
+            --- 文章开始 ---
+            {text.strip()}
+            --- 文章结束 ---
+
+            请从以下5个维度进行评估，每个维度给出评分和理由：
+
+            1. 开头质量（0.6分）：
+               - 评分标准：开头是否直接入题，有吸引力，符合人设
+               - 0分：开头拖沓，没有吸引力，不符合人设
+               - 0.3分：开头尚可，但吸引力不足或人设不够明显
+               - 0.6分：开头直接入题，有吸引力，符合人设
+
+            2. 经典引用恰当性（0.6分）：
+               - 评分标准：经典引用是否自然恰当，与观点紧密相关
+               - 0分：没有引用或引用生硬、不相关
+               - 0.3分：有引用但不够自然或相关性一般
+               - 0.6分：引用自然恰当，与观点紧密相关
+
+            3. 内容深度与思想性（0.6分）：
+               - 评分标准：内容是否有深度，观点是否有启发性，避免空洞
+               - 0分：内容空洞，观点老套，没有启发性
+               - 0.3分：内容有一定深度，但观点不够深入
+               - 0.6分：内容有深度，观点有启发性，能引发思考
+
+            4. 文笔流畅度与可读性（0.6分）：
+               - 评分标准：文笔是否流畅自然，语言是否有节奏感
+               - 0分：文笔生硬，语言不流畅
+               - 0.3分：文笔尚可，但流畅度不足
+               - 0.6分：文笔流畅自然，语言有节奏感
+
+            5. 情感共鸣（0.6分）：
+               - 评分标准：是否能引发情感共鸣，是否打动人心
+               - 0分：情感平淡，无法引发共鸣
+               - 0.3分：有一定情感，但共鸣不足
+               - 0.6分：能引发情感共鸣，打动人心
+
+            请严格按照以下JSON格式返回评估结果：
+            {{
+              "intro_quality": {{"score": 1.0, "reason": "理由说明"}},
+              "classic_naturalness": {{"score": 0.5, "reason": "理由说明"}},
+              "content_depth": {{"score": 1.0, "reason": "理由说明"}},
+              "writing_fluency": {{"score": 1.0, "reason": "理由说明"}},
+              "emotional_resonance": {{"score": 0.5, "reason": "理由说明"}}
+            }}
+
+            注意：
+            - 只返回JSON，不要包含任何其他文字说明
+            - 每个维度的评分必须在规定范围内（0-1分），系统会自动转换为0-0.6分制
+            - 理由说明要简明扼要，指出优点或不足
+            """)
+
+        resp = client.chat.completions.create(
+            model=self.model,
+            messages=[
+                {"role": "system", "content": system_msg},
+                {"role": "user", "content": user_msg},
+            ],
+            temperature=0.2,  # 使用较低的temperature以提高稳定性
+        )
+
+        content = resp.choices[0].message.content or ""
+
+        # 解析JSON结果
+        json_start = content.find("{")
+        json_end = content.rfind("}") + 1
+
+        if json_start >= 0 and json_end > json_start:
+            json_str = content[json_start:json_end]
+            return json.loads(json_str)
+
+        return None
+```
+
+- [ ] **Step 4: 运行测试（预期通过）**
+
+```bash
+pytest tests/test_ai_evaluator.py -v
+```
+Expected: All PASS
+
+- [ ] **Step 5: 提交AI评估器实现**
+
+```bash
+git add promptbench/evaluators/ai_evaluator.py tests/test_ai_evaluator.py
+git commit -m "feat: 实现AI语义评估器
+
+- 实现 AIEvaluator 类
+- 支持 5 个维度的AI语义评估
+- 支持自定义模型和提供商
+- 添加完整的单元测试和Mock"
+```
+
+---
+
+### Task 9: 集成测试
+
+**Files:**
+- Test: `tests/test_evaluators_integration.py`
+
+- [ ] **Step 1: 编写集成测试**
+
+```python
+# tests/test_evaluators_integration.py
+import pytest
+from promptbench.evaluators.rule_evaluator import RuleEvaluator
+from promptbench.evaluators.ai_evaluator import AIEvaluator
+from promptbench.core.entities import RuleEvaluation, AIEvaluation
+
+def test_full_evaluation_flow():
+    """测试完整的评估流程"""
+    rule_evaluator = RuleEvaluator()
+    ai_evaluator = AIEvaluator()
+
+    text = """
+    退休之后，没事就来公园散散步，看见老哥拿个大毛笔蘸着水写字，
+    一笔一划，稳稳当当的，写的是真好。
+
+    看见这位老哥写字，我就觉得，这才是退休该有的样子。
+    我站在旁边看着，不打扰，就觉得心里踏实、舒坦。
+    这日子，平淡，却有滋味。
+    """
+
+    prompt = "写一篇关于退休生活的短文，400-600字"
+
+    # 规则评估
+    rule_result = rule_evaluator.evaluate(text)
+    assert isinstance(rule_result, RuleEvaluation)
+    assert 0 <= rule_result.rule_score <= 3.0
+
+    # AI评估（需要mock）
+    from unittest.mock import Mock, patch
+
+    with patch.object(ai_evaluator, '_get_client') as mock_get_client:
+        mock_client = Mock()
+        mock_response = Mock()
+        mock_response.choices = [Mock()]
+        mock_response.choices[0].message.content = '''{
+            "intro_quality": {"score": 0.8, "reason": "开头自然入题"},
+            "classic_naturalness": {"score": 0.6, "reason": "无引用"},
+            "content_depth": {"score": 0.7, "reason": "有真情实感"},
+            "writing_fluency": {"score": 0.9, "reason": "文笔流畅"},
+            "emotional_resonance": {"score": 0.8, "reason": "引发共鸣"}
+        }'''
+        mock_client.chat.completions.create.return_value = mock_response
+        mock_get_client.return_value = mock_client
+
+        ai_result = ai_evaluator.evaluate(text, prompt)
+        assert isinstance(ai_result, AIEvaluation)
+        assert 0 <= ai_result.ai_score <= 3.0
+
+    # 总分计算
+    total_score = rule_result.rule_score + ai_result.ai_score
+    assert 0 <= total_score <= 6.0
+```
+
+- [ ] **Step 2: 运行集成测试（预期通过）**
+
+```bash
+pytest tests/test_evaluators_integration.py -v
+```
+Expected: PASS
+
+- [ ] **Step 3: 提交集成测试**
+
+```bash
+git add tests/test_evaluators_integration.py
+git commit -m "test: 添加评估器集成测试"
+```
+
+---
+
+**Chunk 3 完成！**
+
+已实现：
+- ✅ Task 6: 创建 evaluators 模块包结构
+- ✅ Task 7: 实现规则评估器（RuleEvaluator）
+- ✅ Task 8: 实现 AI 评估器（AIEvaluator）
+- ✅ Task 9: 集成测试
+
+测试文件：
+- `tests/test_rule_evaluator.py`
+- `tests/test_ai_evaluator.py`
+- `tests/test_evaluators_integration.py`
+
 准备继续下一个chunk吗？
+---
+
+## Chunk 4: Detectors 模块
+
+### Task 12-15: AI检测器实现
+
+**模块结构**:
+- `promptbench/detectors/__init__.py` - 模块导出
+- `promptbench/detectors/base.py` - 基础检测器
+- `promptbench/detectors/multi_detector.py` - 多检测器聚合
+- `tests/test_detectors.py` - 测试
+
+由于 AI 检测模块代码量较大且涉及多个第三方 API，**采用精简实现**：
+- 支持模拟检测（基于文本特征的启发式算法）
+- 预留 API 接口（zhuque, gptzero, copyleaks）
+- 支持多检测器加权平均
+
+**实施步骤**：
+1. 创建 detectors 包结构
+2. 实现基础检测器（AIDetector）
+3. 实现多检测器聚合（MultiAIDetector）
+4. 添加单元测试
+
+预计测试数量：6-8 个
+预计代码行数：~300 行
+
+---
+
+## Chunk 5: Optimizers 模块
+
+### Task 16-18: 提示词优化器实现
+
+**模块结构**:
+- `promptbench/optimizers/__init__.py` - 模块导出
+- `promptbench/optimizers/summarizer.py` - 评估总结器
+- `promptbench/optimizers/prompt_optimizer.py` - 提示词优化器
+- `tests/test_optimizers.py` - 测试
+
+**核心功能**:
+- EvaluationSummarizer: 分析评估结果，生成优化建议
+  - AI评估维度建议（开头、引用、深度、文笔、情感）
+  - 规则评估维度建议（字数、段落、结构）
+  - 自动识别共性问题
+  
+- PromptOptimizer: 使用LLM自动优化提示词
+  - 基于原始提示词和评估总结
+  - 生成新版本的完整提示词
+  - 保留Markdown结构化格式
+
+**实施步骤**：
+1. 创建 optimizers 包结构
+2. 实现 EvaluationSummarizer
+3. 实现 PromptOptimizer（包含Mock）
+4. 添加单元测试
+
+预计测试数量：4-5 个
+预计代码行数：~250 行
+
+---
+
+## Chunk 6: Models & Versions 模块
+
+### Task 20-24: 模型和版本管理实现
+
+**模块结构**:
+- `promptbench/models/__init__.py` - 模块导出
+- `promptbench/models/client.py` - 模型客户端
+- `promptbench/versions/__init__.py` - 模块导出
+- `promptbench/versions/prompt_manager.py` - 提示词管理
+- `promptbench/versions/history_manager.py` - 历史记录管理
+- `tests/test_models_versions.py` - 测试
+
+**核心功能**:
+- ModelClient: 统一的模型调用接口
+- PromptManager: 提示词文件管理（加载、保存、版本查询）
+- HistoryManager: 评估历史记录管理（加载、保存、计算摘要）
+
+**实施步骤**：
+1. 创建 models 和 versions 包结构
+2. 实现 ModelClient
+3. 实现 PromptManager
+4. 实现 HistoryManager
+5. 添加测试
+
+预计测试数量：4-5 个
+预计代码行数：~300 行
+
+**注意**：采用精简实现，核心功能优先
+
+---
+
+## Chunk 7-8: CLI 和 Utils 模块
+
+### Task 25-26: 最终模块实现
+
+**模块结构**:
+- `promptbench/cli/__init__.py` - CLI 接口
+- `promptbench/cli/main.py` - 主入口
+- `promptbench/utils/__init__.py` - 工具函数
+- `promptbench/utils/text.py` - 文本处理工具
+- `promptbench/utils/file.py` - 文件操作工具
+- `promptbench/utils/log.py` - 日志工具
+- `tests/test_cli.py` - CLI 测试
+- `tests/test_utils.py` - 工具函数测试
+
+**核心功能**:
+- CLI: 命令行接口（如 `evaluate`, `ranking`, `optimize`）
+- Text utils: 文本处理辅助函数
+- File utils: 文件操作和管理
+- Log utils: 日志记录和管理
+
+**实施步骤**：
+1. 创建 CLI 和 Utils 包结构
+2. 实现 CLI 接口
+3. 实现工具函数
+4. 添加测试
+
+预计测试数量：3-4 个
+预计代码行数：~200 行
+
+**注意**：采用极简实现，保持代码精简

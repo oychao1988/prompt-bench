@@ -48,7 +48,7 @@
         {
             "provider": "xiaoai",
             "name": "claude-sonnet-4-20250514",
-            "enabled": true,
+            "enabled": false,
             "input_price": "$12.0000/M",
             "output_price": "$60.0000/M",
             "description": "Claude Sonnet 4 是由 anthropic 提供的人工智能模型。"

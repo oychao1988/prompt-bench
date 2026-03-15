@@ -41,6 +41,21 @@ class RuleEvaluation:
     avg_para_length: float
     length_range: str
 
+    def to_dict(self) -> dict:
+        """转换为字典"""
+        return {
+            "rule_score": self.rule_score,
+            "in_length_range": self.in_length_range,
+            "para_count_reasonable": self.para_count_reasonable,
+            "avg_para_length_ok": self.avg_para_length_ok,
+            "has_3_points": self.has_3_points,
+            "has_headings": self.has_headings,
+            "chars": self.chars,
+            "paragraphs": self.paragraphs,
+            "avg_para_length": self.avg_para_length,
+            "length_range": self.length_range
+        }
+
 
 # ====== AI评估结果 ======
 
@@ -50,6 +65,14 @@ class AIEvaluation:
     ai_score: float
     ai_details: Dict[str, Any]
     error: Optional[str] = None
+
+    def to_dict(self) -> dict:
+        """转换为字典"""
+        return {
+            "ai_score": self.ai_score,
+            "ai_details": self.ai_details,
+            "error": self.error
+        }
 
 
 # ====== AI检测结果 ======

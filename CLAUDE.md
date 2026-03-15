@@ -10,6 +10,24 @@ PromptBench 开发指南 - 提示词评估与优化工具。
 
 **技术栈**：Python 3.12 + OpenAI SDK
 
+**当前状态**：✅ 核心功能已完成并验证
+
+**已实现功能**：
+- ✅ 多模型并行评估（8个模型同时测试）
+- ✅ 规则评估引擎（5个维度）
+- ✅ AI语义评估（5个维度，使用LLM）
+- ✅ AI检测（多检测器支持，含模拟检测）
+- ✅ 模型连通性测试（ping命令）
+- ✅ 自动禁用失败模型（--auto-disable）
+- ✅ 评估结果保存（JSON格式）
+- ✅ 评估总结生成（优化建议）
+- ✅ 版本管理（提示词和历史记录）
+
+**已验证版本**：v4（胡家喜人设：60岁退休语文老师）
+- 评估时间：2026-03-15
+- 平均总分：8.0/10分
+- 最佳模型：deepseek-v3.2-exp（9.42分）
+
 **核心功能**：
 - 多模型并行评估（使用 models.json 配置）
 - 混合评估体系（规则6分 + AI评估6分，总分12分）
@@ -104,28 +122,89 @@ PromptBench 开发指南 - 提示词评估与优化工具。
 ## CLI Commands
 
 ```bash
-# 运行评估
+# 运行评估（使用最新版本提示词）
 promptbench evaluate
 
 # 基于指定版本评估
-promptbench evaluate --from-version 3
+promptbench evaluate --from-version 4
 
-# 仅测试不优化
+# 仅测试不优化（跳过自动生成下一版）
 promptbench evaluate --skip-optimize
 
-# 查看版本排名
+# 测试模型连通性
+promptbench ping --all                                    # Ping 所有启用的模型
+promptbench ping --provider xiaoai --model gpt-5.1-2025-11-13  # Ping 单个模型
+promptbench ping --all --auto-disable                     # Ping 并自动禁用失败的模型
+
+# 查看版本排名（占位符）
 promptbench ranking
 
-# 显示版本详情
-promptbench show 3
+# 显示版本详情（占位符）
+promptbench show 4
 
-# 比较版本
+# 比较版本（占位符）
 promptbench compare --versions 1 2 3
 
 # 查看帮助
 promptbench --help
 promptbench evaluate --help
+promptbench ping --help
 ```
+
+## 评估流程说明
+
+### 完整评估流程
+
+```bash
+# 1. 确保模型配置正确
+python -m promptbench.cli.main ping --all
+
+# 2. 运行评估（会自动生成下一版提示词）
+python -m promptbench.cli.main evaluate --from-version 4
+
+# 3. 查看评估结果
+cat outputs/v4/evaluations.json
+cat outputs/v4/summary.md
+
+# 4. 查看各模型生成的文章
+ls outputs/v4/
+```
+
+### 评估输出说明
+
+每次评估会生成以下文件：
+
+```
+outputs/v4/
+├── evaluations.json                    # 详细评估结果（JSON格式）
+├── summary.md                          # 评估总结和优化建议
+├── xiaoai__gpt-5.1-2025-11-13.txt     # 各模型生成的文章
+├── xiaoai__deepseek-v3.2-exp.txt       # （最佳模型示例）
+└── ...                                 # 其他模型输出
+```
+
+### 实际评估示例（v4版本）
+
+**版本信息**：v4（胡家喜人设：60岁退休语文老师）
+
+**评估结果**：
+- **评估模型数**：8个
+- **平均总分**：8.0/10分
+- **最佳模型**：deepseek-v3.2-exp（9.42分）
+- **AI评估平均分**：2.9/3分（优秀）
+- **人类化程度**：平均65%
+
+**最佳模型表现（deepseek-v3.2-exp）**：
+- 规则评估：3.0/3.0分（满分）
+- AI语义评估：2.94/3.0分
+- AI检测：3.48/4.0分（人类率87%）
+- 文章字数：1279字
+- 段落数：10段
+
+**主要优化建议**：
+1. 段落数量控制（部分模型段落过多）
+2. 小标题结构建议添加
+3. 段落长度需要更均衡
 
 ### 开发模式运行
 

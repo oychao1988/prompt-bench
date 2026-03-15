@@ -115,3 +115,49 @@ class ModelClient:
         except Exception as e:
             print(f"❌ 模型调用失败 ({self.provider}/{model_name}): {e}")
             return None
+
+    def test_connection(self, model_name: str) -> Dict[str, Any]:
+        """
+        测试模型连接性
+
+        Args:
+            model_name: 模型名称
+
+        Returns:
+            包含测试结果的字典
+        """
+        client = self.get_client()
+
+        if client is None:
+            return {
+                "success": False,
+                "error": "无法创建客户端（请检查 API Key 配置）",
+                "provider": self.provider,
+                "model": model_name
+            }
+
+        try:
+            # 发送一个简单的测试请求
+            response = client.chat.completions.create(
+                model=model_name,
+                messages=[
+                    {"role": "user", "content": "Hi"}
+                ],
+                max_tokens=10
+            )
+
+            return {
+                "success": True,
+                "provider": self.provider,
+                "model": model_name,
+                "base_url": self._base_url,
+                "response": response.choices[0].message.content if response.choices else None
+            }
+
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "provider": self.provider,
+                "model": model_name
+            }
