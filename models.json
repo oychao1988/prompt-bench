@@ -26,7 +26,7 @@
         {
             "provider": "xiaoai",
             "name": "claude-haiku-4-5-20251001-thinking",
-            "enabled": false,
+            "enabled": true,
             "input_price": "$1.0000/M",
             "output_price": "$5.0000/M"
         },
@@ -48,7 +48,7 @@
         {
             "provider": "xiaoai",
             "name": "claude-sonnet-4-20250514",
-            "enabled": false,
+            "enabled": true,
             "input_price": "$12.0000/M",
             "output_price": "$60.0000/M",
             "description": "Claude Sonnet 4 是由 anthropic 提供的人工智能模型。"

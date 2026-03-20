@@ -9,11 +9,12 @@ from typing import Dict, Final
 
 # ====== 规则评估权重 ======
 DEFAULT_RULE_WEIGHTS: Final[Dict[str, float]] = {
-    "in_length_range": 1.0,
-    "para_count_reasonable": 0.7,
-    "avg_para_length_ok": 0.3,
-    "has_3_points": 0.6,
-    "has_headings": 0.4,
+    "in_length_range": 1.0,       # 字数是否在指定范围内
+    "has_title": 0.3,             # 是否有一级标题 (# 标题)
+    "has_subtitles": 0.4,         # 是否有小标题 (## 二级标题)
+    "has_bold_content": 0.3,      # 是否有加粗内容 (**text**)
+    "has_images": 0.2,            # 是否有图片 (![]() 或 <img>)
+    "has_3_points": 0.8,          # 中间是否有足够的观点段落 (≥3个)
 }
 
 # ====== AI语义评估权重 ======
@@ -45,6 +46,15 @@ REASONABLE_PARAGRAPH_LENGTH: Final[tuple[int, int]] = (30, 150)
 
 # ====== 最小观点段落数 ======
 MIN_POINT_PARAGRAPHS: Final[int] = 3
+
+# ====== 格式检测正则模式 ======
+TITLE_PATTERN: Final[str] = r"^#\s"                  # 一级标题
+SUBTITLE_PATTERN: Final[str] = r"^##\s"              # 二级标题
+BOLD_PATTERN: Final[str] = r"\*\*[^*]+\*\*"          # 加粗内容 **text**
+IMAGE_PATTERNS: Final[list[str]] = [                 # 图片检测
+    r"!\[.*?\]\(.*?\)",        # Markdown 图片 ![alt](url)
+    r'<img[^>]+src=["\'].*?["\']',  # HTML 图片标签
+]
 
 # ====== AI检测评分 ======
 AI_DETECTION_MAX_SCORE: Final[float] = 4.0

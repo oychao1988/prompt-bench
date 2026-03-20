@@ -410,9 +410,13 @@ class CLI:
             output_file = output_dir / f"{provider}__{model_name}.txt"
             output_file.write_text(content, encoding="utf-8")
 
-            # 执行评估
-            rule_evaluator = RuleEvaluator()
-            rule_eval = rule_evaluator.evaluate(content)
+            # 从提示词中提取字数要求
+            from promptbench.utils.text import TextUtils
+            prompt_length_range = TextUtils.extract_length_requirement(prompt)
+
+            # 执行评估（使用提示词中的字数要求，如果没有则使用默认值）
+            rule_evaluator = RuleEvaluator(length_range=prompt_length_range)
+            rule_eval = rule_evaluator.evaluate(content, prompt_length_range=prompt_length_range)
 
             ai_evaluator = AIEvaluator()
             ai_eval = ai_evaluator.evaluate(content, prompt)

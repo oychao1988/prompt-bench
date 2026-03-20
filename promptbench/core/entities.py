@@ -32,13 +32,13 @@ class RuleEvaluation:
     """规则评估结果"""
     rule_score: float
     in_length_range: bool
-    para_count_reasonable: bool
-    avg_para_length_ok: bool
+    has_title: bool
+    has_subtitles: bool
+    has_bold_content: bool
+    has_images: bool
     has_3_points: bool
-    has_headings: bool
     chars: int
     paragraphs: int
-    avg_para_length: float
     length_range: str
 
     def to_dict(self) -> dict:
@@ -46,13 +46,13 @@ class RuleEvaluation:
         return {
             "rule_score": self.rule_score,
             "in_length_range": self.in_length_range,
-            "para_count_reasonable": self.para_count_reasonable,
-            "avg_para_length_ok": self.avg_para_length_ok,
+            "has_title": self.has_title,
+            "has_subtitles": self.has_subtitles,
+            "has_bold_content": self.has_bold_content,
+            "has_images": self.has_images,
             "has_3_points": self.has_3_points,
-            "has_headings": self.has_headings,
             "chars": self.chars,
             "paragraphs": self.paragraphs,
-            "avg_para_length": self.avg_para_length,
             "length_range": self.length_range
         }
 

@@ -23,22 +23,47 @@ class TextUtils:
         Returns:
             (min_length, max_length) 或 None
         """
-        # 匹配 "400-1500"、"400~1500"、"400到1500" 等格式
+        # 匹配各种字数要求格式
         patterns = [
+            # "1000-1200字" 或 "1000～1200字" 或 "1000到1200字"
+            r'(\d+)\s*[-~到至]\s*(\d+)\s*字',
+            # "1000-1200" 或 "1000~1200"
             r'(\d+)\s*[-~到至]\s*(\d+)',
-            r'(\d+)-(\d+)',
-            r'约?(\d+)\s*字',
+            # "字数控制在 1000–1200 字" 或 "1000–1200 之间"
+            r'(\d+)\s*[–—-]\s*(\d+)',
+            # "1000 到 1200 字之间"
+            r'(\d+)\s+到\s+(\d+)\s+字',
+            # "1000-1200字为主" 或 "1000-1200 字左右"
+            r'(\d+)\s*[-~到至]\s*(\d+)\s*字[之主左右]+',
+            # "严格控制在 1000-1200 字"
+            r'控制.*?(\d+)\s*[-~到至]\s*(\d+)\s*字',
+            # "不得低于 1000 字，不得超过 1300 字"
+            r'(?:不低于|不少于|至少)\s*(\d+)\s*字.*?(?:不超过|低于|多于|高于)\s*(\d+)\s*字',
+            # "1000字以上" 或 "1200字以下"
+            r'(\d+)\s*字以上',
+            r'(\d+)\s*字以下',
+            # "约1000字"
+            r'约?(\d+)\s*字[左右上下]+',
         ]
 
         for pattern in patterns:
             match = re.search(pattern, text)
             if match:
-                if len(match.groups()) == 2:
-                    return (int(match.group(1)), int(match.group(2)))
-                else:
-                    # 单个字数，返回一个合理范围
-                    target = int(match.group(1))
-                    return (target - 200, target + 200)
+                groups = match.groups()
+                if len(groups) == 2:
+                    # 有两个数字，返回范围
+                    return (int(groups[0]), int(groups[1]))
+                elif len(groups) == 1:
+                    # 只有一个数字
+                    num = int(groups[0])
+                    # 根据上下文判断是上限还是下限
+                    if '以上' in text or '不少于' in text or '至少' in text:
+                        return (num, num + 500)  # 下限，给一个合理上限
+                    elif '以下' in text or '不超过' in text or '低于' in text:
+                        return (max(100, num - 500), num)  # 上限，给一个合理下限
+                    else:
+                        # 约等于，返回一个合理范围
+                        return (max(100, num - 100), num + 100)
 
         return None
 
