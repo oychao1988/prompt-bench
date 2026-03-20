@@ -50,9 +50,10 @@ MIN_POINT_PARAGRAPHS: Final[int] = 3
 TITLE_PATTERN: Final[str] = r"^#\s"                  # 一级标题
 SUBTITLE_PATTERN: Final[str] = r"^##\s"              # 二级标题
 BOLD_PATTERN: Final[str] = r"\*\*[^*]+\*\*"          # 加粗内容 **text**
-IMAGE_PATTERNS: Final[list[str]] = [                 # 图片检测
-    r"!\[.*?\]\(.*?\)",        # Markdown 图片 ![alt](url)
-    r'<img[^>]+src=["\'].*?["\']',  # HTML 图片标签
+IMAGE_PROMPT_PATTERNS: Final[list[str]] = [         # 图片提示词检测
+    r"图片提示词[：:]\s*",     # "图片提示词：" 或 "图片提示词:"
+    r"图片描述[：:]\s*",       # "图片描述：" 或 "图片描述:"
+    r"画面描述[：:]\s*",       # "画面描述：" 或 "画面描述:"
 ]
 
 # ====== AI检测评分 ======
