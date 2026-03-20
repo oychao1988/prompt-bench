@@ -61,8 +61,8 @@ class RuleEvaluator:
         paragraphs = [p for p in text.split("\n") if p.strip()]
         para_count = len(paragraphs)
 
-        # 1. 字数是否在指定范围内
-        in_length_range = min_length <= chars <= max_length
+        # 1. 计算字数得分（线性衰减）
+        length_score, in_length_range = self._calculate_length_score(chars, min_length, max_length)
 
         # 2. 是否有一级标题 (# 标题)
         has_title = self._detect_pattern(text, TITLE_PATTERN)
@@ -78,17 +78,19 @@ class RuleEvaluator:
 
         # 计算规则得分
         rule_score = 0.0
-        rule_evaluations = {
-            "in_length_range": in_length_range,
-            "has_title": has_title,
-            "has_subtitles": has_subtitles,
-            "has_bold_content": has_bold_content,
-            "has_images": has_images,
-        }
 
-        for key, passed in rule_evaluations.items():
-            if passed and key in self.weights:
-                rule_score += self.weights[key]
+        # 字数得分直接使用计算值
+        rule_score += length_score
+
+        # 其他指标使用布尔判定
+        if has_title:
+            rule_score += self.weights.get("has_title", 0)
+        if has_subtitles:
+            rule_score += self.weights.get("has_subtitles", 0)
+        if has_bold_content:
+            rule_score += self.weights.get("has_bold_content", 0)
+        if has_images:
+            rule_score += self.weights.get("has_images", 0)
 
         return RuleEvaluation(
             rule_score=round(rule_score, 2),
@@ -101,6 +103,46 @@ class RuleEvaluator:
             paragraphs=para_count,
             length_range=f"{min_length}-{max_length}",
         )
+
+    def _calculate_length_score(self, chars: int, min_length: int, max_length: int) -> Tuple[float, bool]:
+        """
+        计算字数得分（线性衰减）
+
+        衰减规则：
+        - 在 [min_length, max_length] 范围内：满分
+        - 低于 min_length：线性衰减，低于 min_length * 0.5 时为 0 分
+        - 高于 max_length：线性衰减，高于 max_length * 1.5 时为 0 分
+
+        Args:
+            chars: 实际字数
+            min_length: 最小字数
+            max_length: 最大字数
+
+        Returns:
+            (得分, 是否在范围内)
+        """
+        max_score = self.weights.get("in_length_range", 0.8)
+
+        # 在范围内：满分
+        if min_length <= chars <= max_length:
+            return max_score, True
+
+        # 低于下限
+        if chars < min_length:
+            zero_point = min_length * 0.5  # 下限的50%位置为0分点
+            if chars <= zero_point:
+                return 0.0, False
+            # 线性衰减：从 zero_point(0分) 到 min_length(满分)
+            ratio = (chars - zero_point) / (min_length - zero_point)
+            return round(max_score * ratio, 2), False
+
+        # 高于上限
+        zero_point = max_length * 1.5  # 上限的150%位置为0分点
+        if chars >= zero_point:
+            return 0.0, False
+        # 线性衰减：从 max_length(满分) 到 zero_point(0分)
+        ratio = (zero_point - chars) / (zero_point - max_length)
+        return round(max_score * ratio, 2), False
 
     def _detect_pattern(self, text: str, pattern: str) -> bool:
         """
