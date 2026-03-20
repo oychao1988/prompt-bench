@@ -177,14 +177,14 @@ class EvaluationSummarizer:
                 )
             )
 
-        # 5. 图片描述提示词
+        # 5. 图片占位符
         no_images = sum(1 for r in results if not r.get("rule_details", {}).get("has_images", True))
         if no_images > 0:
             suggestions.append(
                 PromptTemplate.build_suggestion(
                     "has_images",
                     no_images,
-                    "添加 '必须包含图片描述提示词，每个观点段落后添加图片生成提示' 的要求"
+                    "添加 '每个观点段落后插入图片占位符，格式：![图片描述](https://...)' 的要求"
                 )
             )
 

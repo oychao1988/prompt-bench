@@ -13,7 +13,7 @@ from promptbench.core.constants import (
     TITLE_PATTERN,
     SUBTITLE_PATTERN,
     BOLD_PATTERN,
-    IMAGE_PROMPT_PATTERNS,
+    IMAGE_PATTERNS,
     DEFAULT_LENGTH_RANGE,
 )
 
@@ -73,8 +73,8 @@ class RuleEvaluator:
         # 4. 是否有加粗内容 (**text**)
         has_bold_content = self._detect_pattern(text, BOLD_PATTERN)
 
-        # 5. 是否有图片提示词
-        has_images = any(self._detect_pattern(text, pattern) for pattern in IMAGE_PROMPT_PATTERNS)
+        # 5. 是否有图片占位符
+        has_images = any(self._detect_pattern(text, pattern) for pattern in IMAGE_PATTERNS)
 
         # 计算规则得分
         rule_score = 0.0
