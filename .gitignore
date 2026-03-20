@@ -39,7 +39,15 @@ evaluations_history.json
 
 # 提示词版本文件（测试对象）
 prompts/v*.md
+prompts/*.backup
 .worktrees/
+
+# 模型配置（个人配置，不应提交）
+models.json
+
+# 临时测试文件
+test_topic.py
+test_*.py
 
 # 旧代码（已废弃，仅供参考）
 evaluate_prompts.py
