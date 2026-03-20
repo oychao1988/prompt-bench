@@ -226,7 +226,12 @@ class CLI:
         # 4. 评估结果列表
         all_results = []
 
-        # 5. 并行评估
+        # 5. 并行评估（带智能重试）
+        import time
+
+        retry_candidates = []
+
+        # 第一轮：并发执行所有评估
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
             future_to_model = {}
 
@@ -250,6 +255,39 @@ class CLI:
                         print(f"✅ {provider}/{model_name} 完成")
                     else:
                         print(f"❌ {provider}/{model_name} 失败")
+                        # 添加到重试列表
+                        retry_candidates.append((provider, model_name))
+
+                except Exception as e:
+                    error_msg = str(e)
+                    print(f"❌ {provider}/{model_name} 出错: {error_msg}")
+
+                    # 检查是否可重试
+                    if CLI.is_retryable_error(error_msg):
+                        print(f"   ⏳ 检测到并发限制，将重试")
+                        retry_candidates.append((provider, model_name))
+
+        # 第二轮：重试失败的模型（顺序执行）
+        if retry_candidates:
+            print(f"\n⏳ 正在重试 {len(retry_candidates)} 个失败的模型...")
+            print("-" * 60)
+
+            for provider, model_name in retry_candidates:
+                print(f"🔄 重试 {provider}/{model_name}...")
+
+                # 等待一段时间再重试
+                time.sleep(2)
+
+                try:
+                    result = CLI._evaluate_single_model(
+                        provider, model_name, prompt, version, models_config
+                    )
+
+                    if result:
+                        all_results.append(result)
+                        print(f"✅ {provider}/{model_name} (重试成功)")
+                    else:
+                        print(f"❌ {provider}/{model_name} (重试失败)")
 
                 except Exception as e:
                     print(f"❌ {provider}/{model_name} 出错: {e}")
@@ -346,7 +384,22 @@ class CLI:
             
             # 调用模型
             client = ModelClient(provider, api_format)
-            content = client.call(model_name, prompt)
+
+            # 设置默认 topic（如果没有提供，使用通用主题）
+            # 这里使用一个通用的家庭/婚姻主题作为默认值
+            default_topic = "一个35岁全职妈妈在婚姻中感到孤独和委屈，丈夫长期缺席家庭责任"
+
+            # 设置 max_tokens 限制（约等于 1500-1800 中文字符）
+            # 1 token ≈ 0.75-1 个中文字符，所以 2000 tokens ≈ 1500-2000 字
+            max_tokens = 2000
+
+            content = client.call(
+                model_name=model_name,
+                prompt=prompt,
+                topic=default_topic,
+                max_tokens=max_tokens,
+                temperature=0.8
+            )
 
             if not content:
                 return None
@@ -397,11 +450,78 @@ class CLI:
     @staticmethod
     def show_ranking(config_manager, args):
         """
-        显示排名
+        显示版本排名
 
-        说明：此方法目前是占位符
+        Args:
+            config_manager: 配置管理器
+            args: 命令行参数
         """
-        print(f"显示版本排名（前 {args.limit} 个）:")
+        from pathlib import Path
+
+        history_file = Path("evaluations_history.json")
+
+        if not history_file.exists():
+            print("❌ 未找到评估历史记录")
+            print("   请先运行评估: promptbench evaluate")
+            return
+
+        with open(history_file, "r", encoding="utf-8") as f:
+            history = json.load(f)
+
+        if not history:
+            print("❌ 评估历史记录为空")
+            return
+
+        # 提取版本信息并按平均分排序
+        version_rankings = []
+        for version_key, version_data in history.items():
+            summary = version_data.get("summary", {})
+            version_rankings.append({
+                "version": version_data.get("version", int(version_key[1:])),
+                "avg_total_score": summary.get("avg_total_score", 0),
+                "avg_rule_score": summary.get("avg_rule_score", 0),
+                "avg_ai_score": summary.get("avg_ai_score", 0),
+                "avg_detection_score": summary.get("avg_detection_score", 0),
+                "best_model": summary.get("best_model", "N/A"),
+                "model_count": summary.get("model_count", 0),
+                "timestamp": version_data.get("timestamp", "")
+            })
+
+        # 按平均总分降序排序
+        version_rankings.sort(key=lambda x: x["avg_total_score"], reverse=True)
+
+        # 显示排名
+        limit = min(args.limit, len(version_rankings))
+
+        print(f"\n{'='*100}")
+        print(f"提示词版本排名（前 {limit} 个）")
+        print(f"{'='*100}\n")
+
+        print(f"{'排名':<6} {'版本':<8} {'平均总分':<12} {'规则分':<10} {'AI分':<10} {'检测分':<10} {'最佳模型':<25} {'模型数':<8}")
+        print("-" * 100)
+
+        for idx, version_info in enumerate(version_rankings[:limit], 1):
+            print(f"{idx:<6} v{version_info['version']:<7} "
+                  f"{version_info['avg_total_score']:<12.2f} "
+                  f"{version_info['avg_rule_score']:<10.2f} "
+                  f"{version_info['avg_ai_score']:<10.2f} "
+                  f"{version_info['avg_detection_score']:<10.2f} "
+                  f"{version_info['best_model']:<25} "
+                  f"{version_info['model_count']:<8}")
+
+        print(f"\n总计：{len(version_rankings)} 个版本")
+
+        # 统计信息
+        if version_rankings:
+            best_version = version_rankings[0]
+            worst_version = version_rankings[-1]
+            avg_score = sum(v["avg_total_score"] for v in version_rankings) / len(version_rankings)
+
+            print(f"\n统计信息：")
+            print(f"  最佳版本：v{best_version['version']} ({best_version['avg_total_score']:.2f}分)")
+            print(f"  最差版本：v{worst_version['version']} ({worst_version['avg_total_score']:.2f}分)")
+            print(f"  整体平均：{avg_score:.2f}分")
+            print(f"  版本跨度：v{min(v['version'] for v in version_rankings)} → v{max(v['version'] for v in version_rankings)}")
 
     @staticmethod
     def compare_versions(config_manager, args):
@@ -417,9 +537,99 @@ class CLI:
         """
         显示版本详情
 
-        说明：此方法目前是占位符
+        Args:
+            config_manager: 配置管理器
+            args: 命令行参数
         """
-        print(f"显示版本详情: v{args.version}")
+        from pathlib import Path
+        from datetime import datetime
+
+        version = args.version
+        history_file = Path("evaluations_history.json")
+
+        if not history_file.exists():
+            print("❌ 未找到评估历史记录")
+            print("   请先运行评估: promptbench evaluate")
+            return
+
+        with open(history_file, "r", encoding="utf-8") as f:
+            history = json.load(f)
+
+        version_key = f"v{version}"
+        if version_key not in history:
+            print(f"❌ 未找到版本 v{version} 的评估记录")
+            print(f"   可用版本：{', '.join(sorted([k for k in history.keys() if k.startswith('v')]))}")
+            return
+
+        version_data = history[version_key]
+        summary = version_data.get("summary", {})
+        evaluations = version_data.get("evaluations", [])
+
+        print(f"\n{'='*100}")
+        print(f"版本 v{version} 详细信息")
+        print(f"{'='*100}\n")
+
+        # 基本信息
+        print(f"📁 提示词文件：{version_data.get('prompt_path', 'N/A')}")
+        timestamp = version_data.get("timestamp", "")
+        if timestamp:
+            try:
+                dt = datetime.fromisoformat(timestamp)
+                print(f"🕐 评估时间：{dt.strftime('%Y-%m-%d %H:%M:%S')}")
+            except:
+                print(f"🕐 评估时间：{timestamp}")
+        print()
+
+        # 评估摘要
+        print(f"📊 评估摘要：")
+        print("-" * 60)
+        print(f"  评估模型数：{summary.get('model_count', 0)} 个")
+        print(f"  平均总分：{summary.get('avg_total_score', 0):.2f}/10")
+        print(f"  平均规则分：{summary.get('avg_rule_score', 0):.2f}/3")
+        print(f"  平均 AI 分：{summary.get('avg_ai_score', 0):.2f}/3")
+        print(f"  平均检测分：{summary.get('avg_detection_score', 0):.2f}/4")
+        print(f"  最高分：{summary.get('max_total_score', 0):.2f}")
+        print(f"  最低分：{summary.get('min_total_score', 0):.2f}")
+        print(f"  最佳模型：{summary.get('best_model', 'N/A')}")
+        print()
+
+        # 模型表现排名
+        if evaluations:
+            # 按总分排序
+            sorted_evals = sorted(evaluations, key=lambda x: x.get("total_score", 0), reverse=True)
+
+            print(f"🏆 模型表现排名：")
+            print("-" * 100)
+            print(f"{'排名':<6} {'模型':<35} {'总分':<10} {'规则分':<10} {'AI分':<10} {'检测分':<10} {'字数':<10}")
+            print("-" * 100)
+
+            for idx, eval_data in enumerate(sorted_evals, 1):
+                provider = eval_data.get("provider", "")
+                model = eval_data.get("model", "Unknown")
+                model_name = f"{provider}/{model}" if provider else model
+                total_score = eval_data.get("total_score", 0)
+                rule_score = eval_data.get("rule_score", 0)
+                ai_score = eval_data.get("ai_score", 0)
+                detection_score = eval_data.get("detection_score", 0)
+                chars = eval_data.get("chars", 0)
+
+                print(f"{idx:<6} {model_name:<35} {total_score:<10.2f} {rule_score:<10.2f} "
+                      f"{ai_score:<10.2f} {detection_score:<10.2f} {chars:<10}")
+
+            print()
+
+        # 输出文件
+        output_dir = Path(f"outputs/v{version}")
+        if output_dir.exists():
+            output_files = list(output_dir.glob("*.txt"))
+            print(f"📄 输出文件（{len(output_files)} 个）：")
+            for file in sorted(output_files):
+                file_size = file.stat().st_size
+                print(f"  - {file.name} ({file_size} 字节)")
+        else:
+            print(f"📄 输出目录不存在：{output_dir}")
+
+        print(f"\n{'='*100}\n")
 
     @staticmethod
     def load_models_config(config_manager: ConfigManager) -> Dict[str, List[Dict[str, Any]]]:
@@ -469,14 +679,39 @@ class CLI:
             print(f"   Error: {result.get('error', 'Unknown error')}")
 
     @staticmethod
+    def is_retryable_error(error_msg: str) -> bool:
+        """
+        判断错误是否可重试
+
+        Args:
+            error_msg: 错误信息
+
+        Returns:
+            是否可重试
+        """
+        retryable_patterns = [
+            "429",  # HTTP 429 Too Many Requests
+            "Concurrent request limit",
+            "并发",
+            "rate limit",
+            "too many requests",
+            "overload",
+        ]
+        error_lower = error_msg.lower()
+        return any(pattern.lower() in error_lower for pattern in retryable_patterns)
+
+    @staticmethod
     def ping_models(config_manager: ConfigManager, args) -> None:
         """
-        测试模型连通性
+        测试模型连通性（支持并发和智能重试）
 
         Args:
             config_manager: 配置管理器
             args: 命令行参数
         """
+        import time
+        import concurrent.futures
+
         # 如果指定了单个模型
         if args.provider and args.model:
             print(f"Ping 模型: {args.provider}/{args.model}")
@@ -493,32 +728,118 @@ class CLI:
             print("Ping 所有启用的模型...")
             print("=" * 60)
 
-            total_count = 0
-            success_count = 0
-            failed_models = []
-            failed_models_full = []  # 存储完整信息用于自动禁用
-
-            # 遍历所有模型分类
+            # 收集所有启用的模型
+            models_to_ping = []
             for category, models in models_config.items():
                 for idx, model_config in enumerate(models):
-                    if not model_config.get("enabled", False):
-                        continue
+                    if model_config.get("enabled", False):
+                        models_to_ping.append({
+                            "category": category,
+                            "idx": idx,
+                            "provider": model_config["provider"],
+                            "name": model_config["name"]
+                        })
 
-                    total_count += 1
-                    provider = model_config["provider"]
-                    model_name = model_config["name"]
+            total_count = len(models_to_ping)
+            success_count = 0
+            failed_models = []
+            failed_models_full = []
+
+            # 第一轮：并发执行所有 ping
+            retry_candidates = []
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+                future_to_model = {}
+
+                for model_info in models_to_ping:
+                    future = executor.submit(
+                        CLI.ping_model_connection,
+                        model_info["provider"],
+                        model_info["name"],
+                        models_config
+                    )
+                    future_to_model[future] = model_info
+
+                for future in concurrent.futures.as_completed(future_to_model):
+                    model_info = future_to_model[future]
+                    provider = model_info["provider"]
+                    model_name = model_info["name"]
+
+                    try:
+                        result = future.result()
+                        if result["success"]:
+                            success_count += 1
+                            print(f"✅ {provider}/{model_name}")
+                        else:
+                            error_msg = result.get("error", "Unknown error")
+                            print(f"❌ {provider}/{model_name}")
+
+                            # 检查是否可重试
+                            if CLI.is_retryable_error(error_msg):
+                                print(f"   ⏳ {error_msg} (将重试)")
+                                retry_candidates.append({
+                                    "category": model_info["category"],
+                                    "idx": model_info["idx"],
+                                    "provider": provider,
+                                    "name": model_name,
+                                    "error": error_msg
+                                })
+                            else:
+                                print(f"   Error: {error_msg}")
+                                failed_models.append((provider, model_name, error_msg))
+                                failed_models_full.append((
+                                    model_info["category"],
+                                    model_info["idx"],
+                                    provider,
+                                    model_name,
+                                    error_msg
+                                ))
+
+                    except Exception as e:
+                        error_msg = str(e)
+                        print(f"❌ {provider}/{model_name}")
+                        print(f"   Error: {error_msg}")
+                        failed_models.append((provider, model_name, error_msg))
+                        failed_models_full.append((
+                            model_info["category"],
+                            model_info["idx"],
+                            provider,
+                            model_name,
+                            error_msg
+                        ))
+
+            # 第二轮：重试可重试的模型（顺序执行以避免并发冲突）
+            if retry_candidates:
+                print(f"\n⏳ 正在重试 {len(retry_candidates)} 个因并发限制失败的模型...")
+                print("-" * 60)
+
+                for retry_info in retry_candidates:
+                    provider = retry_info["provider"]
+                    model_name = retry_info["name"]
+                    error_msg = retry_info["error"]
+
+                    print(f"🔄 重试 {provider}/{model_name}...")
+
+                    # 等待一段时间再重试
+                    time.sleep(2)
 
                     result = CLI.ping_model_connection(provider, model_name, models_config)
 
                     if result["success"]:
                         success_count += 1
-                        print(f"✅ {provider}/{model_name}")
+                        print(f"✅ {provider}/{model_name} (重试成功)")
                     else:
-                        error_msg = result.get("error", "Unknown error")
-                        failed_models.append((provider, model_name, error_msg))
-                        failed_models_full.append((category, idx, provider, model_name, error_msg))
+                        new_error = result.get("error", "Unknown error")
                         print(f"❌ {provider}/{model_name}")
-                        print(f"   Error: {error_msg}")
+                        print(f"   Error: {new_error}")
+                        failed_models.append((provider, model_name, new_error))
+                        failed_models_full.append((
+                            retry_info["category"],
+                            retry_info["idx"],
+                            provider,
+                            model_name,
+                            new_error
+                        ))
 
             print("=" * 60)
             print(f"Ping 完成: {success_count}/{total_count} 个模型可用")
@@ -526,7 +847,9 @@ class CLI:
             if failed_models:
                 print(f"\n失败的模型 ({len(failed_models)}):")
                 for provider, model_name, error in failed_models:
-                    print(f"  - {provider}/{model_name}: {error}")
+                    # 只显示错误信息的前100个字符
+                    error_short = error[:100] + "..." if len(error) > 100 else error
+                    print(f"  - {provider}/{model_name}: {error_short}")
 
             # 如果指定了 --auto-disable，则禁用失败的模型
             if args.auto_disable and failed_models_full:

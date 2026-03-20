@@ -270,7 +270,8 @@ class ModelClient:
 
     def _test_anthropic_connection(self, model_name: str) -> Dict[str, Any]:
         """测试 Anthropic 格式连接"""
-        
+        import requests
+
         provider_config = self.config_manager.get_provider_config(self.provider)
         
         if not provider_config.get("api_key"):
