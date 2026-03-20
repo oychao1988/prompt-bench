@@ -10,7 +10,6 @@ from typing import Optional, Tuple, Dict
 from promptbench.core.entities import RuleEvaluation
 from promptbench.core.constants import (
     DEFAULT_RULE_WEIGHTS,
-    MIN_POINT_PARAGRAPHS,
     TITLE_PATTERN,
     SUBTITLE_PATTERN,
     BOLD_PATTERN,
@@ -77,10 +76,6 @@ class RuleEvaluator:
         # 5. 是否有图片
         has_images = any(self._detect_pattern(text, pattern) for pattern in IMAGE_PATTERNS)
 
-        # 6. 结构检测（中间是否有足够的观点段落）
-        middle_para_count = max(0, para_count - 2)
-        has_3_points = middle_para_count >= MIN_POINT_PARAGRAPHS
-
         # 计算规则得分
         rule_score = 0.0
         rule_evaluations = {
@@ -89,7 +84,6 @@ class RuleEvaluator:
             "has_subtitles": has_subtitles,
             "has_bold_content": has_bold_content,
             "has_images": has_images,
-            "has_3_points": has_3_points,
         }
 
         for key, passed in rule_evaluations.items():
@@ -103,7 +97,6 @@ class RuleEvaluator:
             has_subtitles=has_subtitles,
             has_bold_content=has_bold_content,
             has_images=has_images,
-            has_3_points=has_3_points,
             chars=chars,
             paragraphs=para_count,
             length_range=f"{min_length}-{max_length}",

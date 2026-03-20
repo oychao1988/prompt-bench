@@ -36,7 +36,6 @@ class RuleEvaluation:
     has_subtitles: bool
     has_bold_content: bool
     has_images: bool
-    has_3_points: bool
     chars: int
     paragraphs: int
     length_range: str
@@ -50,7 +49,6 @@ class RuleEvaluation:
             "has_subtitles": self.has_subtitles,
             "has_bold_content": self.has_bold_content,
             "has_images": self.has_images,
-            "has_3_points": self.has_3_points,
             "chars": self.chars,
             "paragraphs": self.paragraphs,
             "length_range": self.length_range

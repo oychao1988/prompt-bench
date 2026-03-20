@@ -9,12 +9,11 @@ from typing import Dict, Final
 
 # ====== 规则评估权重 ======
 DEFAULT_RULE_WEIGHTS: Final[Dict[str, float]] = {
-    "in_length_range": 1.0,       # 字数是否在指定范围内
-    "has_title": 0.3,             # 是否有一级标题 (# 标题)
-    "has_subtitles": 0.4,         # 是否有小标题 (## 二级标题)
+    "in_length_range": 0.8,       # 字数是否在指定范围内
+    "has_title": 0.5,             # 是否有一级标题 (# 标题)
+    "has_subtitles": 0.3,         # 是否有小标题 (## 二级标题)
     "has_bold_content": 0.3,      # 是否有加粗内容 (**text**)
-    "has_images": 0.2,            # 是否有图片 (![]() 或 <img>)
-    "has_3_points": 0.8,          # 中间是否有足够的观点段落 (≥3个)
+    "has_images": 0.1,            # 是否有图片占位符 (![]() 或 <img>)
 }
 
 # ====== AI语义评估权重 ======
@@ -29,9 +28,9 @@ DEFAULT_AI_WEIGHTS: Final[Dict[str, float]] = {
 # ====== 评分规则总览 ======
 SCORING_RULES: Final[Dict[str, float]] = {
     "total_score": 10.0,        # 总分
-    "quality_score": 6.0,        # 质量评估（规则3分 + AI评估3分）
-    "rule_score": 3.0,           # 规则评估
-    "ai_score": 3.0,             # AI语义评估
+    "quality_score": 6.0,        # 质量评估（规则2分 + AI评估4分）
+    "rule_score": 2.0,           # 规则评估
+    "ai_score": 4.0,             # AI语义评估
     "detection_score": 4.0,      # AI检测
 }
 
