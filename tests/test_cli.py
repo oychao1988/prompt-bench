@@ -62,11 +62,12 @@ def test_parse_args_ranking_with_limit():
 
 
 def test_parse_args_compare():
-    """测试解析对比命令"""
-    with patch.object(sys, 'argv', ['promptbench', 'compare', '--versions', '1', '2']):
+    """测试解析对比命令（横向对比）"""
+    with patch.object(sys, 'argv', ['promptbench', 'compare', '--type', 'horizontal', '--version', '4']):
         args = CLI.parse_args()
         assert args.command == 'compare'
-        assert args.versions == [1, 2]
+        assert args.type == 'horizontal'
+        assert args.version == 4
 
 
 def test_parse_args_show():

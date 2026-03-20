@@ -18,8 +18,57 @@ class CLI:
     """PromptBench 命令行接口"""
 
     @staticmethod
+    def get_api_format_from_category(category_name: str) -> str:
+        """
+        根据模型分类名称确定 API 格式
+
+        直接根据 models.json 中的分类键名判断，不依赖 provider 名称。
+
+        Args:
+            category_name: models.json 中的分类名称（如 "openai_models", "anthropic_models"）
+
+        Returns:
+            API 格式字符串（"openai" 或 "anthropic"）
+
+        分类映射规则：
+        - anthropic_models → anthropic
+        - 其他所有分类（openai_models、google_models、deepseek_models等）→ openai
+        """
+        # 提取分类基础名称（移除 _models 后缀）
+        if category_name.endswith("_models"):
+            base_name = category_name[:-7]  # 移除 "_models" 后缀
+        else:
+            base_name = category_name
+
+        # 根据分类名称确定 API 格式
+        # 只有 anthropic 使用 Anthropic API 格式
+        # 其他所有分类（openai、google、deepseek 等）都使用 OpenAI 兼容格式
+        if base_name == "anthropic":
+            return "anthropic"
+        else:
+            return "openai"
+
+    @staticmethod
+    def find_model_category(models_config: Dict, provider: str, model_name: str) -> str:
+        """
+        在 models_config 中查找指定模型所属的分类
+        
+        Args:
+            models_config: 模型配置字典
+            provider: 提供商名称
+            model_name: 模型名称
+            
+        Returns:
+            分类名称
+        """
+        for category, models in models_config.items():
+            for model in models:
+                if model.get("provider") == provider and model.get("name") == model_name:
+                    return category
+        return "unknown"
+
+    @staticmethod
     def parse_args():
-        """解析命令行参数"""
         parser = argparse.ArgumentParser(
             description="PromptBench - 提示词评估与优化工具"
         )
@@ -46,15 +95,6 @@ class CLI:
         ranking_parser.add_argument(
             "--limit", "-l", type=int, default=10,
             help="显示数量限制（默认10）"
-        )
-
-        # 比较命令
-        compare_parser = subparsers.add_parser(
-            "compare", help="版本对比"
-        )
-        compare_parser.add_argument(
-            "--versions", "-v", nargs="+", type=int,
-            help="要比较的版本号"
         )
 
         # 查看命令
@@ -86,6 +126,23 @@ class CLI:
             help="自动禁用测试失败的模型"
         )
 
+        # 对比命令
+        compare_parser = subparsers.add_parser(
+            "compare", help="对比评估结果"
+        )
+        compare_parser.add_argument(
+            "--type", "-t", type=str, choices=["horizontal", "vertical"],
+            help="对比类型：horizontal（横向对比）或 vertical（纵向对比）"
+        )
+        compare_parser.add_argument(
+            "--version", "-v", type=int,
+            help="指定版本号（用于横向对比）"
+        )
+        compare_parser.add_argument(
+            "--model", "-m", type=str,
+            help="指定模型名称（用于纵向对比）"
+        )
+
         return parser.parse_args()
 
     @staticmethod
@@ -101,12 +158,12 @@ class CLI:
             CLI.run_evaluation(config_manager, args)
         elif args.command == "ranking":
             CLI.show_ranking(config_manager, args)
-        elif args.command == "compare":
-            CLI.compare_versions(config_manager, args)
         elif args.command == "show":
             CLI.show_version(config_manager, args)
         elif args.command == "ping":
             CLI.ping_models(config_manager, args)
+        elif args.command == "compare":
+            CLI.compare_results(config_manager, args)
         else:
             print("未知命令，请使用 --help 查看帮助")
             sys.exit(1)
@@ -178,7 +235,7 @@ class CLI:
 
                 future = executor.submit(
                     CLI._evaluate_single_model,
-                    provider, model_name, prompt, version
+                    provider, model_name, prompt, version, models_config
                 )
                 future_to_model[future] = (provider, model_name)
 
@@ -259,7 +316,7 @@ class CLI:
         print(f"评估完成！共评估 {len(all_results)}/{len(enabled_models)} 个模型")
 
     @staticmethod
-    def _evaluate_single_model(provider, model_name, prompt, version):
+    def _evaluate_single_model(provider, model_name, prompt, version, models_config=None):
         """
         评估单个模型
 
@@ -268,6 +325,7 @@ class CLI:
             model_name: 模型名称
             prompt: 提示词
             version: 版本号
+            models_config: 模型配置字典（用于确定 API 格式）
 
         Returns:
             EvaluationResult 或 None
@@ -280,8 +338,14 @@ class CLI:
         from pathlib import Path
 
         try:
+            # 确定 API 格式
+            api_format = "openai"  # 默认格式
+            if models_config:
+                category = CLI.find_model_category(models_config, provider, model_name)
+                api_format = CLI.get_api_format_from_category(category)
+            
             # 调用模型
-            client = ModelClient(provider)
+            client = ModelClient(provider, api_format)
             content = client.call(model_name, prompt)
 
             if not content:
@@ -378,15 +442,22 @@ class CLI:
             return json.load(f)
 
     @staticmethod
-    def ping_single_model(provider: str, model_name: str) -> None:
+    def ping_single_model(provider: str, model_name: str, models_config: Dict = None) -> None:
         """
         测试单个模型的连通性
 
         Args:
             provider: 提供商名称
             model_name: 模型名称
+            models_config: 模型配置字典（用于确定 API 格式）
         """
-        client = ModelClient(provider)
+        # 确定 API 格式
+        api_format = "openai"  # 默认格式
+        if models_config:
+            category = CLI.find_model_category(models_config, provider, model_name)
+            api_format = CLI.get_api_format_from_category(category)
+        
+        client = ModelClient(provider, api_format)
         result = client.test_connection(model_name)
 
         if result["success"]:
@@ -410,7 +481,9 @@ class CLI:
         if args.provider and args.model:
             print(f"Ping 模型: {args.provider}/{args.model}")
             print("-" * 60)
-            CLI.ping_single_model(args.provider, args.model)
+            # 加载模型配置以确定 API 格式
+            models_config = CLI.load_models_config(config_manager)
+            CLI.ping_single_model(args.provider, args.model, models_config)
             return
 
         # 测试所有启用的模型
@@ -435,7 +508,7 @@ class CLI:
                     provider = model_config["provider"]
                     model_name = model_config["name"]
 
-                    result = CLI.ping_model_connection(provider, model_name)
+                    result = CLI.ping_model_connection(provider, model_name, models_config)
 
                     if result["success"]:
                         success_count += 1
@@ -482,19 +555,222 @@ class CLI:
         print("  promptbench ping --all")
 
     @staticmethod
-    def ping_model_connection(provider: str, model_name: str) -> Dict[str, Any]:
+    def ping_model_connection(provider: str, model_name: str, models_config: Dict = None) -> Dict[str, Any]:
         """
         Ping 模型连接（内部方法）
 
         Args:
             provider: 提供商名称
             model_name: 模型名称
+            models_config: 模型配置字典（用于确定 API 格式）
 
         Returns:
             测试结果字典
         """
-        client = ModelClient(provider)
+        # 确定 API 格式
+        api_format = "openai"  # 默认格式
+        if models_config:
+            category = CLI.find_model_category(models_config, provider, model_name)
+            api_format = CLI.get_api_format_from_category(category)
+        
+        client = ModelClient(provider, api_format)
         return client.test_connection(model_name)
+
+    @staticmethod
+    def compare_results(config_manager, args) -> None:
+        """
+        对比评估结果
+
+        Args:
+            config_manager: 配置管理器
+            args: 命令行参数
+        """
+        import json
+        from pathlib import Path
+
+        if args.type == "horizontal":
+            # 横向对比：同一版本的不同模型
+            if not args.version:
+                print("错误：横向对比需要指定 --version 参数")
+                print("示例：promptbench compare --type horizontal --version 4")
+                return
+
+            version = args.version
+            eval_file = config_manager.config.outputs_dir / f"v{version}" / "evaluations.json"
+
+            if not eval_file.exists():
+                print(f"错误：未找到版本 {version} 的评估结果：{eval_file}")
+                return
+
+            with open(eval_file, "r", encoding="utf-8") as f:
+                results = json.load(f)
+
+            CLI._show_horizontal_comparison(results, version)
+
+        elif args.type == "vertical":
+            # 纵向对比：同一模型的不同版本
+            if not args.model:
+                print("错误：纵向对比需要指定 --model 参数")
+                print("示例：promptbench compare --type vertical --model deepseek-v3.2-exp")
+                return
+
+            model = args.model
+            outputs_dir = config_manager.config.outputs_dir
+
+            # 收集所有版本的评估结果
+            version_results = {}
+
+            for version_dir in sorted(outputs_dir.iterdir()):
+                if version_dir.name.startswith("v"):
+                    version = int(version_dir.name[1:])
+                    eval_file = version_dir / "evaluations.json"
+
+                    if eval_file.exists():
+                        with open(eval_file, "r", encoding="utf-8") as f:
+                            results = json.load(f)
+
+                        # 查找指定模型的结果
+                        found = False
+                        for result in results:
+                            # 兼容新旧格式
+                            result_model = result.get("model", "")
+                            provider = result.get("provider", "")
+
+                            # 检查是否在顶层
+                            if model in result_model:
+                                version_results[version] = result
+                                found = True
+                                break
+
+                            # 检查是否嵌套在 evaluation 中（旧格式）
+                            if not found:
+                                evaluation = result.get("evaluation", {})
+                                eval_model = evaluation.get("model", "")
+                                if model in eval_model:
+                                    version_results[version] = result
+                                    found = True
+                                    break
+
+            if not version_results:
+                print(f"错误：未找到模型 '{model}' 的任何评估结果")
+                return
+
+            CLI._show_vertical_comparison(version_results, model)
+
+        else:
+            print("请指定对比类型：")
+            print("  --type horizontal  横向对比（同一版本的不同模型）")
+            print("  --type vertical    纵向对比（同一模型的不同版本）")
+            print("\n示例：")
+            print("  promptbench compare --type horizontal --version 4")
+            print("  promptbench compare --type vertical --model deepseek-v3.2-exp")
+
+    @staticmethod
+    def _show_horizontal_comparison(results: list, version: int) -> None:
+        """
+        显示横向对比结果
+
+        Args:
+            results: 评估结果列表
+            version: 版本号
+        """
+        print(f"\n{'='*80}")
+        print(f"版本 {version} - 横向对比（不同模型的表现）")
+        print(f"{'='*80}\n")
+
+        # 按总分排序
+        sorted_results = sorted(results, key=lambda x: x.get("total_score", 0), reverse=True)
+
+        # 表头
+        print(f"{'排名':<4} {'模型':<35} {'总分':<8} {'规则分':<8} {'AI分':<8} {'检测分':<8} {'字数':<8} {'人类率':<8}")
+        print("-" * 100)
+
+        for idx, result in enumerate(sorted_results, 1):
+            model = result.get("model", "Unknown")
+            provider = result.get("provider", "")
+            total_score = result.get("total_score", 0)
+            rule_score = result.get("rule_score", 0)
+            ai_score = result.get("ai_score", 0)
+            detection_score = result.get("detection_score", 0)
+            chars = result.get("chars", 0)
+            human_pct = result.get("detection_details", {}).get("human_percentage", 0)
+
+            model_name = f"{provider}/{model}" if provider else model
+
+            print(f"{idx:<4} {model_name:<35} {total_score:<8.2f} {rule_score:<8.2f} {ai_score:<8.2f} {detection_score:<8.2f} {chars:<8} {human_pct:<8}%")
+
+        print(f"\n总计：{len(results)} 个模型")
+
+        # 统计信息
+        avg_total = sum(r.get("total_score", 0) for r in results) / len(results)
+        max_total = max(r.get("total_score", 0) for r in results)
+        min_total = min(r.get("total_score", 0) for r in results)
+
+        print(f"平均分：{avg_total:.2f}")
+        print(f"最高分：{max_total:.2f}")
+        print(f"最低分：{min_total:.2f}")
+
+    @staticmethod
+    def _show_vertical_comparison(version_results: dict, model: str) -> None:
+        """
+        显示纵向对比结果
+
+        Args:
+            version_results: 版本号到评估结果的映射
+            model: 模型名称
+        """
+        print(f"\n{'='*80}")
+        print(f"模型 {model} - 纵向对比（不同版本的表现）")
+        print(f"{'='*80}\n")
+
+        if not version_results:
+            return
+
+        # 按版本号排序
+        sorted_versions = sorted(version_results.items())
+
+        # 表头
+        print(f"{'版本':<8} {'总分':<8} {'规则分':<8} {'AI分':<8} {'检测分':<8} {'字数':<8} {'人类率':<8} {'段落数':<8}")
+        print("-" * 100)
+
+        for version, result in sorted_versions:
+            # 兼容新旧格式
+            if "total_score" in result:
+                # 新格式
+                total_score = result.get("total_score", 0)
+                rule_score = result.get("rule_score", 0)
+                ai_score = result.get("ai_score", 0)
+                detection_score = result.get("detection_score", 0)
+                chars = result.get("chars", 0)
+                detection_details = result.get("detection_details", {})
+                human_pct = detection_details.get("human_percentage", 0)
+                paragraphs = result.get("paragraphs", 0)
+            else:
+                # 旧格式（嵌套在 evaluation 中）
+                evaluation = result.get("evaluation", {})
+                total_score = evaluation.get("total_score", 0)
+                rule_score = evaluation.get("rule_score", 0)
+                ai_score = evaluation.get("ai_score", 0)
+                detection_score = evaluation.get("detection_score", 0)
+                chars = evaluation.get("chars", 0)
+                detection_result = result.get("detection_result", {})
+                human_pct = detection_result.get("human_percentage", 0)
+                paragraphs = evaluation.get("paragraphs", 0)
+
+            print(f"v{version:<7} {total_score:<8.2f} {rule_score:<8.2f} {ai_score:<8.2f} {detection_score:<8.2f} {chars:<8} {human_pct:<8}% {paragraphs:<8}")
+
+        # 统计信息
+        scores = [r.get("total_score", 0) for r in version_results.values()]
+        if scores:
+            avg_score = sum(scores) / len(scores)
+            max_score = max(scores)
+            min_score = min(scores)
+            best_version = max(version_results.items(), key=lambda x: x[1].get("total_score", 0))[0]
+
+            print(f"\n平均分：{avg_score:.2f}")
+            print(f"最高分：{max_score:.2f} (v{best_version})")
+            print(f"最低分：{min_score:.2f}")
+            print(f"版本跨度：v{min(version_results.keys())} → v{max(version_results.keys())}")
 
 
 if __name__ == "__main__":
