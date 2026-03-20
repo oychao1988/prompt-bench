@@ -6,6 +6,7 @@
 """
 
 from typing import List, Dict, Any, Optional, Tuple
+from promptbench.versions.prompt_template import PromptTemplate
 
 
 class EvaluationSummarizer:
@@ -42,6 +43,8 @@ class EvaluationSummarizer:
         lines = []
         lines.append("优化建议（基于多模型输出的共性表现）：")
         lines.append("")
+        lines.append("请根据以下建议，只更新对应的章节内容，其他章节保持不变。")
+        lines.append("")
 
         # 分析AI评估维度
         ai_suggestions = self._analyze_ai_dimensions(results)
@@ -74,7 +77,7 @@ class EvaluationSummarizer:
         # 1. 开头质量
         intro_bad = sum(
             1 for r in results
-            if r.get("ai_details", {}).get("intro_quality", {}).get("score", 1) < self.ai_threshold
+            if r.get("ai_details", {}).get("ai_details", {}).get("intro_quality", {}).get("score", 1) < self.ai_threshold
         )
         if intro_bad > 0:
             suggestions.append(
@@ -84,7 +87,7 @@ class EvaluationSummarizer:
         # 2. 经典引用恰当性
         classic_unnatural = sum(
             1 for r in results
-            if r.get("ai_details", {}).get("classic_naturalness", {}).get("score", 1) < self.ai_threshold
+            if r.get("ai_details", {}).get("ai_details", {}).get("classic_naturalness", {}).get("score", 1) < self.ai_threshold
         )
         if classic_unnatural > 0:
             suggestions.append(
@@ -94,7 +97,7 @@ class EvaluationSummarizer:
         # 3. 内容深度与思想性
         content_shallow = sum(
             1 for r in results
-            if r.get("ai_details", {}).get("content_depth", {}).get("score", 1) < self.ai_threshold
+            if r.get("ai_details", {}).get("ai_details", {}).get("content_depth", {}).get("score", 1) < self.ai_threshold
         )
         if content_shallow > 0:
             suggestions.append(
@@ -104,7 +107,7 @@ class EvaluationSummarizer:
         # 4. 文笔流畅度与可读性
         writing_choppy = sum(
             1 for r in results
-            if r.get("ai_details", {}).get("writing_fluency", {}).get("score", 1) < self.ai_threshold
+            if r.get("ai_details", {}).get("ai_details", {}).get("writing_fluency", {}).get("score", 1) < self.ai_threshold
         )
         if writing_choppy > 0:
             suggestions.append(
@@ -114,7 +117,7 @@ class EvaluationSummarizer:
         # 5. 情感共鸣
         low_emotion = sum(
             1 for r in results
-            if r.get("ai_details", {}).get("emotional_resonance", {}).get("score", 1) < self.ai_threshold
+            if r.get("ai_details", {}).get("ai_details", {}).get("emotional_resonance", {}).get("score", 1) < self.ai_threshold
         )
         if low_emotion > 0:
             suggestions.append(
@@ -130,38 +133,59 @@ class EvaluationSummarizer:
         suggestions = []
 
         # 1. 字数要求
-        wrong_length = sum(1 for r in results if not r.get("in_length_range", True))
+        wrong_length = sum(1 for r in results if not r.get("rule_details", {}).get("in_length_range", True))
         if wrong_length > 0 and length_range:
+            params = PromptTemplate.format_length_requirement(length_range[0], length_range[1])
+            suggestion = PromptTemplate.build_suggestion(
+                "in_length_range",
+                wrong_length,
+                f"明确要求总字数严格控制在 {length_range[0]}-{length_range[1]} 字之间，"
+                f"低于 {params['min_lower']} 字或高于 {params['max_upper']} 字将视为不合格"
+            )
+            suggestions.append(suggestion)
+
+        # 2. 一级标题
+        no_title = sum(1 for r in results if not r.get("rule_details", {}).get("has_title", True))
+        if no_title > 0:
             suggestions.append(
-                f"- 字数控制（{wrong_length}个模型不符合）：明确要求文章总字数控制在 {length_range[0]}-{length_range[1]} 字之间。"
+                PromptTemplate.build_suggestion(
+                    "has_title",
+                    no_title,
+                    "添加 '必须使用一级标题 (# 标题) 作为文章开头' 的要求"
+                )
             )
 
-        # 2. 段落数量
-        para_count_bad = sum(1 for r in results if not r.get("para_count_reasonable", True))
-        if para_count_bad > 0:
+        # 3. 小标题
+        no_subtitles = sum(1 for r in results if not r.get("rule_details", {}).get("has_subtitles", True))
+        if no_subtitles > 0:
             suggestions.append(
-                f"- 段落数量（{para_count_bad}个模型不合理）：文章段落数建议控制在 5-20 段之间。"
+                PromptTemplate.build_suggestion(
+                    "has_subtitles",
+                    no_subtitles,
+                    "添加 '必须使用二级标题 (## 标题) 划分观点段落' 的要求，每个观点一段"
+                )
             )
 
-        # 3. 段落长度
-        avg_para_length_bad = sum(1 for r in results if not r.get("avg_para_length_ok", True))
-        if avg_para_length_bad > 0:
+        # 4. 加粗内容
+        no_bold = sum(1 for r in results if not r.get("rule_details", {}).get("has_bold_content", True))
+        if no_bold > 0:
             suggestions.append(
-                f"- 段落长度（{avg_para_length_bad}个模型不合理）：每段平均长度建议在 30-150 字之间。"
+                PromptTemplate.build_suggestion(
+                    "has_bold_content",
+                    no_bold,
+                    "添加 '重点关键词和金句必须使用 **加粗** 标记' 的要求"
+                )
             )
 
-        # 4. 结构完整性
-        not_3_points = sum(1 for r in results if not r.get("has_3_points", True))
-        if not_3_points > 0:
+        # 5. 图片占位符
+        no_images = sum(1 for r in results if not r.get("rule_details", {}).get("has_images", True))
+        if no_images > 0:
             suggestions.append(
-                f"- 结构完整性（{not_3_points}个模型不符合）：中间必须拆成 3 个观点段落，每个观点 2-3 句。"
-            )
-
-        # 5. 小标题结构
-        no_headings = sum(1 for r in results if not r.get("has_headings", True))
-        if no_headings > 0:
-            suggestions.append(
-                f"- 小标题结构（{no_headings}个模型缺失）：建议添加小标题结构，使用序号形式标注观点段落。"
+                PromptTemplate.build_suggestion(
+                    "has_images",
+                    no_images,
+                    "添加 '每个观点段落后插入图片占位符，格式：![图片描述](https://...)' 的要求"
+                )
             )
 
         return suggestions
